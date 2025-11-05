@@ -70,7 +70,7 @@ public class BoardTest
         Assert.Equal(expectedColumns, board.Columns);
 
         var boardString = board.ToString();
-        var lines = boardString.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        var lines = boardString.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
         Assert.Equal($"{expectedRows}x{expectedColumns}", lines[0]);
 
