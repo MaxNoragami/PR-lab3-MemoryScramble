@@ -9,7 +9,6 @@ var app = builder.Build();
 
 app.MapGet("/", () => "Hello World!");
 
-
 app.UseCors(policy => policy
     .AllowAnyOrigin()
     .AllowAnyMethod()
