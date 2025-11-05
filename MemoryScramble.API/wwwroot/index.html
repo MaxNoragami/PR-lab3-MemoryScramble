@@ -1,0 +1,423 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Play Memory Scramble</title>
+    <style>
+        @import url(https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css);
+
+        select.form-control {
+            display: inline-block;
+            min-width: 25%;
+            width: auto;
+        }
+
+        input[type=text].form-control {
+            display: inline-block;
+            width: 50%;
+        }
+
+        #memory-scramble {
+            margin: 38px;
+        }
+
+            #memory-scramble h1 {
+                margin: 0;
+                float: right;
+                font-style: italic;
+            }
+
+        #memory-server {
+            max-width: 14em;
+        }
+
+        #memory-update {
+            min-width: auto;
+        }
+
+        #memory-board {
+            margin-top: 38px;
+            font-size: 38px;
+        }
+
+        #memory-notes {
+            /* float: left; */
+            margin: 38px 0;
+        }
+
+        #memory-from-card, #memory-to-card {
+            max-width: 5em;
+        }
+
+        table.memory-board {
+            border-spacing: 2px;
+            border-collapse: separate;
+        }
+
+            table.memory-board tr td {
+                width: 2em;
+                height: 2.2em;
+                text-align: center;
+                vertical-align: middle;
+                cursor: pointer;
+                user-select: none;
+                -webkit-user-select: none;
+                color: rgba(0, 0, 0, 0);
+                padding: 0 !important;
+                border: 1px solid black;
+                border-radius: 4px;
+            }
+
+            table.memory-board td:not(:empty) {
+                background: gray;
+            }
+
+            table.memory-board td:empty.card-visible {
+                border: 1px solid rgba(0, 0, 0, .2);
+            }
+
+            table.memory-board td.card-visible {
+                color: rgba(0, 0, 0, 1);
+                background: white;
+            }
+
+                table.memory-board td.card-visible.card-control {
+                    background: rgba(255, 255, 0, .25);
+                    border-color: rgb(128, 64, 0);
+                }
+
+            table.memory-board td.card-waiting {
+                background: rgba(0, 255, 0, .25);
+                border-color: rgb(64, 128, 0);
+                cursor: wait;
+            }
+
+        #memory-scramble .visible-when-playing {
+            visibility: hidden;
+        }
+
+        #memory-scramble.playing .visible-when-playing {
+            visibility: visible;
+        }
+    </style>
+</head>
+<body id="memory-scramble">
+    <h1>Memory Scramble</h1>
+    <div class="form-inline">
+        <input id="memory-server" class="form-control" type="text" autofocus></input>
+        <select id="memory-update" class="form-control">
+            <option value="poll">polling</option>
+            <option value="watch">watching</option>
+        </select>
+        <button id="memory-play" class="btn btn-info">play!</button>
+    </div>
+    <table id="memory-board" class="memory-board visible-when-playing"></table>
+    <div id="memory-notes" class="panel panel-default text-muted visible-when-playing">
+        <div class="panel-body">
+            Cards you control are yellow. A card you are waiting for is green.
+            <br>
+            To see logging output and errors, open your browser&rsquo;s JavaScript Console.
+        </div>
+    </div>
+    <div class="form-inline visible-when-playing">
+        replace card <input id="memory-from-card" class="form-control" type="text" value="&#129412;"></input>
+        with <input id="memory-to-card" class="form-control" type="text" value="&#127853;"></input>
+        <button id="memory-replace" class="btn btn-info">replace</button>
+    </div>
+    <script>
+    /* Copyright (c) 2017-2025 MIT 6.102/6.031 course staff, all rights reserved. */
+
+    function isLocalHost(hostname) {
+      return hostname === 'localhost' || hostname === '127.0.0.1';
+    }
+
+    // redirect to https if necessary, because requests to localhost
+    // are blocked by CORS unless page is loaded securely
+    if (! isLocalHost(document.location.hostname) && document.location.protocol === "http:") {
+      document.location.protocol = "https:";
+    }
+
+    /**
+    * Main program for Memory Scramble user interface.
+    */
+    function memoryGame() {
+      // generate a random player ID: two words and a number
+      const words = [
+        [ 'red', 'orange', 'yellow', 'green', 'blue', 'purple', ],
+        [ 'apple', 'bean', 'carrot', 'donut', 'eclair', 'flan', ],
+        [ Math.floor(Math.random() * Math.pow(16, 3)).toString(16) ],
+      ];
+      const playerID = words.map(function(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }).join('_');
+      console.log('generated player ID', playerID);
+
+      // start-playing interface (the Play button and its arguments)
+      const serverBox = document.getElementById('memory-server');
+      const updateDropdown = document.getElementById('memory-update');
+      const playButton = document.getElementById('memory-play');
+      if (serverBox && updateDropdown) {
+        serverBox.value = (
+          isLocalHost(document.location.hostname)
+            ? `${document.location.hostname}:${document.location.port}`
+            : 'localhost:8080'
+        );
+        serverBox.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter') {
+            serverBox.blur();
+            play(serverBox.value, updateDropdown.value);
+          }
+        });
+        if (document.location.search) {
+          // end URL with ?watch or ?poll to initialize the update dropdown
+          updateDropdown.value = document.location.search.substring(1);
+        }
+        if (playButton) {
+          playButton.addEventListener('click', function() {
+            play(serverBox.value, updateDropdown.value);
+          });
+        }
+      }
+
+      // the game board
+      const boardTable = document.getElementById('memory-board');
+      boardTable.addEventListener('click', flip);
+
+      // the replace-card interface
+      const fromCardBox = document.getElementById('memory-from-card');
+      const toCardBox = document.getElementById('memory-to-card');
+      const replaceButton = document.getElementById('memory-replace');
+      if (fromCardBox && toCardBox && replaceButton) {
+        replaceButton.addEventListener('click', function() { replace(fromCardBox.value, toCardBox.value); });
+      }
+
+      // flippingCell is the HTML element of the card that the player is in the process of flipping,
+      //     (i.e. a flip request to the server is pending and not completed yet).
+      //     Undefined if this player has no flip in progress.
+      let flippingCell = undefined;
+
+      /**
+      * Start playing by connecting to a Memory Scramble server.
+      * @param server (string), hostname/IP address and optional port of server, e.g. "localhost:8080"
+      * @param update ('poll'|'watch') if poll, then periodically polls for
+      *               board changes with look; if watch, then uses watch operation
+      */
+      function play(server, update) {
+        const [hostname, _] = server.split(':');
+        if ( document.location.protocol === 'https:' // we're inside a secure page
+             && (
+                  ! isLocalHost(hostname)        // either trying to use a remote server
+                  || window.safari !== undefined // or using Safari, which doesn't make exceptions for localhost
+            ) ) {
+            alert(`
+Unfortunately your browser won't allow this page hosted on https://${document.location.hostname} to contact http://${hostname}.
+
+Try saving this web page to a file on your local machine, and opening that file in your browser instead.
+`);
+            return;
+        }
+        console.log('playing on server', server);
+        if (serverBox) { serverBox.disabled = true; }
+        if (updateDropdown) { updateDropdown.disabled = true; }
+        if (playButton) { playButton.disabled = true; }
+        document.body.classList.add('playing');
+        memoryGame.server = server;
+        if (update === 'watch') {
+          lookThenWatch();
+        } else {
+          pollingLook();
+        }
+      };
+
+      const POLLING_INTERVAL = 2000; // milliseconds between looks when polling, or between attempts to reach server if connection problem
+
+      /**
+      * Use the look operation to get the initial state of the board and display it,
+      * then start watching the board continuously using the watch operation.
+      */
+      function lookThenWatch() {
+        look();  // get initial state of the board
+        watch(); // and receive subsequent updates by continuous watching
+      }
+
+      /**
+      * Use the watch operation to get changes to the board and display them.
+      * After each watch request returns, automatically starts another,
+      * so that the display is kept updated regulary.
+      */
+      function watch() {
+        const req = new XMLHttpRequest();
+        req.addEventListener('loadstart', function onWatchStart() {
+          console.log('watch start');
+        });
+        req.addEventListener('load', function onWatchLoad() {
+          console.log('watch response', this.responseText.replace(/\r?\n/g, '\u21B5'));
+          refreshBoard(this.responseText);
+          setTimeout(watch, 1);
+        });
+        req.addEventListener('error', function onWatchError() {
+          console.error('watch error', memoryGame.server);
+          // server may have shut down -- start polling for it to return
+          setTimeout(lookThenWatch, POLLING_INTERVAL)
+        });
+        req.open('GET', 'http://' + memoryGame.server + '/watch/' + playerID);
+        console.log('sending watch request');
+        req.send();
+      }
+
+      /**
+      * Uses periodic look requests to get changes to the board and display them,
+      * continuously.
+      */
+      function pollingLook() {
+        setInterval(look, POLLING_INTERVAL);
+        look();
+      }
+
+      /**
+      * Issue a look request to the server and display its results.
+      */
+      function look() {
+        const req = new XMLHttpRequest();
+        req.addEventListener('load', function onLookLoad() {
+          console.log('look response', this.responseText.replace(/\r?\n/g, '\u21B5'));
+          refreshBoard(this.responseText);
+        });
+        req.addEventListener('error', function onLookError() {
+          console.error('look error', memoryGame.server);
+        });
+        req.open('GET', 'http://' + memoryGame.server + '/look/' + playerID);
+        console.log('sending look request');
+        req.send();
+      }
+
+      /**
+      * Send a flip request to the server.
+      * @param event MouseEvent where user clicked to flip a card
+      */
+      function flip(event) {
+        if (event.target.tagName !== 'TD') { return; }
+        if (flippingCell) {
+          alert('already waiting to flip a card');
+          return;
+        }
+
+        flippingCell = event.target;
+        flippingCell.classList.add('card-waiting');
+        const col = indexOfElement(flippingCell);
+        const row = indexOfElement(flippingCell.parentElement);
+        const url = memoryGame.server + '/flip/' + playerID + '/' + row + ',' + col;
+        const req = new XMLHttpRequest();
+        req.addEventListener('load', function onFlipLoad() {
+          if (req.status === 200) { // successful
+            console.log('flip response', this.responseText.replace(/\r?\n/g, '\u21B5'));
+            refreshBoard(this.responseText);
+          } else if (req.status === 409) { // flip failed
+            console.error(req.responseText);
+            alert(req.responseText);
+            look(); // we didn't get an updated board in response to failed flip, so update now
+          }
+        });
+        req.addEventListener('loadend', function onFlipDone() {
+          flippingCell.classList.remove('card-waiting');
+          flippingCell = null;
+        });
+        req.addEventListener('error', function onFlipError() {
+            console.error('flip error', url); // specific error may be handled in load, above
+        });
+        req.open('GET', 'http://' + url);
+        console.log('sending flip request');
+        req.send();
+      }
+
+      /**
+      * Issues a map operation to the server to replace cards.
+      * @param fromCard (string) card value that should be replaced
+      * @param toCard (string) new value of cards that matched fromCard
+      */
+      function replace(fromCard, toCard) {
+        const req = new XMLHttpRequest();
+        req.addEventListener('load', function onLookLoad() {
+          console.log('replace response', this.responseText.replace(/\r?\n/g, '\u21B5'));
+          refreshBoard(this.responseText);
+        });
+        req.addEventListener('error', function onLookError() {
+          console.error('replace error', memoryGame.server);
+        });
+        req.open('GET', 'http://' + memoryGame.server + '/replace/' + playerID + '/' + fromCard + '/' + toCard);
+        console.log('sending replace request');
+        req.send();
+      }
+
+      /**
+      * @param elt HTML element
+      * @returns index of elt in its parent's list of children
+      */
+      function indexOfElement(elt) {
+        return Array.prototype.indexOf.call(elt.parentElement.children, elt);
+      }
+
+      /**
+      * Update the user interface to match the state of the board returned by the server.
+      * @param text (string) board state as defined in ps4 handout
+      */
+      function refreshBoard(text) {
+        const board = text.split(/\r?\n/);
+        const dims = board.shift().split('x');
+        const rows = parseInt(dims.shift());
+        const cols = parseInt(dims.shift());
+        const cards = board.map(function(line) { return line.split(' '); });
+
+        for (let row = 0; row < rows; row++) {
+          const tableRow = boardTable.children[row] ||
+                        boardTable.appendChild(document.createElement('tr'));
+          for (let col = 0; col < cols; col++) {
+            const tableCell = tableRow.children[col] ||
+                            tableRow.appendChild(document.createElement('td'));
+            const card = cards.shift();
+            refreshCell(tableCell, card[0], card[1]);
+          }
+        }
+      }
+
+      /**
+      * Update a single board cell on the board display.
+      * @param tableCell HTML TD element corresponding to the cell
+      * @param status ('none'|'down'|'up'|'my') state of the board cell:
+      *       'none' means no card; 'down' and 'up' mean face down or up, respectively; 'my' means face up and controlled by this player
+      * @param text (string|undefined) text on this card if status is 'up' or 'my'; unspecified and unused if status is 'none' or 'down'
+      */
+      function refreshCell(tableCell, status, text) {
+        tableCell.classList.remove('card-visible');
+        tableCell.classList.remove('card-control');
+        tableCell.innerText = '';
+        if (status === 'none') {
+          tableCell.classList.add('card-visible');
+        } else if (status === 'down') {
+          tableCell.innerText = '?';
+        } else if (status === 'up') {
+          tableCell.classList.add('card-visible');
+          tableCell.innerText = text;
+        } else if (status === 'my') {
+          tableCell.classList.add('card-visible');
+          tableCell.classList.add('card-control');
+          tableCell.innerText = text;
+        } else {
+          console.error('invalid board cell', status, text);
+        }
+      }
+
+      // save and restore server location in a cookie (only works when this UI is running from a web server, e.g. web.mit.edu)
+      const cookie = 'memory-scramble-server';
+      serverBox.addEventListener('change', function() {
+        document.cookie = cookie + '=' + serverBox.value + ';max-age=5';
+        console.log('cookie', document.cookie);
+      });
+      const saved = new RegExp(cookie + '=([^;]+)').exec(document.cookie);
+      if (saved) { serverBox.value = saved[1]; }
+    }
+
+    memoryGame();
+    </script>
+</body>
+</html>
