@@ -7,4 +7,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\MemoryScramble.API\MemoryScramble.API.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="SimulationBoards\" />
+  </ItemGroup>
+
 </Project>
