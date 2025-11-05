@@ -22,4 +22,11 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="TestingBoards\WithInvalidRowColumnValue\" />
+    <Folder Include="TestingBoards\Valid\" />
+    <Folder Include="TestingBoards\WithInvalidCards\" />
+    <Folder Include="TestingBoards\WithMismatchedCardCount\" />
+  </ItemGroup>
+
 </Project>

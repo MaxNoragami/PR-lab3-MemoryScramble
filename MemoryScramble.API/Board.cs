@@ -132,7 +132,7 @@ public class Board
             for (int j = 0; j < Columns; j++)
             {
                 var cell = _grid[i, j];
-                Debug.Assert(cell != null, $"Cell ({i},{j}) must not be null");
+                Debug.Assert(cell != null, $"Cell ({i},{j}) must not be null.");
 
                 if (cell.Card == null)
                 {
@@ -158,39 +158,39 @@ public class Board
             Debug.Assert(cell.IsUp, "Controlled card must be face up.");
 
             Debug.Assert(!string.IsNullOrEmpty(pid), "ControlledBy contains empty player id.");
-            Debug.Assert(_players.ContainsKey(pid), $"_controlledBy references unknown player '{pid}'");
+            Debug.Assert(_players.ContainsKey(pid), $"_controlledBy references unknown player '{pid}'.");
 
             var pstate = _players[pid];
             bool inPlayerState = (pstate.FirstCard != null && pstate.FirstCard.Value == (row, col))
                                  || (pstate.SecondCard != null && pstate.SecondCard.Value == (row, col));
-            Debug.Assert(inPlayerState, $"_controlledBy position ({row},{col}) not present in player {pid}'s state");
+            Debug.Assert(inPlayerState, $"_controlledBy position ({row},{col}) not present in player {pid}'s state.");
         }
 
-        foreach (var kv in _players)
+        foreach (var kvp in _players)
         {
-            var pid = kv.Key;
-            var st = kv.Value;
+            var pid = kvp.Key;
+            var st = kvp.Value;
 
-            Debug.Assert(!(st.FirstCard == null && st.SecondCard != null), $"Player {pid} has SecondCard but no FirstCard");
+            Debug.Assert(!(st.FirstCard == null && st.SecondCard != null), $"Player {pid} has SecondCard but no FirstCard.");
 
             if (st.FirstCard != null)
             {
                 var (r, c) = st.FirstCard.Value;
-                Debug.Assert(r >= 0 && r < Rows && c >= 0 && c < Columns, $"Player {pid}'s FirstCard out of bounds");
+                Debug.Assert(r >= 0 && r < Rows && c >= 0 && c < Columns, $"Player {pid}'s FirstCard out of bounds.");
                 var cell = _grid[r, c];
-                Debug.Assert(cell.Card != null && cell.IsUp, $"Player {pid}'s FirstCard must be a real, face-up card");
+                Debug.Assert(cell.Card != null && cell.IsUp, $"Player {pid}'s FirstCard must be a real, face-up card.");
                 Debug.Assert(_controlledBy.ContainsKey((r, c)) && _controlledBy[(r, c)] == pid,
-                    $"Player {pid}'s FirstCard must be controlled by that player");
+                    $"Player {pid}'s FirstCard must be controlled by that player.");
             }
 
             if (st.SecondCard != null)
             {
                 var (r, c) = st.SecondCard.Value;
-                Debug.Assert(r >= 0 && r < Rows && c >= 0 && c < Columns, $"Player {pid}'s SecondCard out of bounds");
+                Debug.Assert(r >= 0 && r < Rows && c >= 0 && c < Columns, $"Player {pid}'s SecondCard out of bounds.");
                 var cell = _grid[r, c];
-                Debug.Assert(cell.Card != null && cell.IsUp, $"Player {pid}'s SecondCard must be a real, face-up card");
+                Debug.Assert(cell.Card != null && cell.IsUp, $"Player {pid}'s SecondCard must be a real, face-up card.");
                 Debug.Assert(_controlledBy.ContainsKey((r, c)) && _controlledBy[(r, c)] == pid,
-                    $"Player {pid}'s SecondCard must be controlled by that player");
+                    $"Player {pid}'s SecondCard must be controlled by that player.");
             }
         }
     }
