@@ -312,7 +312,7 @@ public class Board
         {
             GiveUpControl(firstPos);
             playerState.ClearCards();
-            throw new FlipException("Card is already controlled.");
+            throw new FlipException("Card is controlled by another player.");
         }
 
         // Rule 2-C: Turn cards facing down to facing up

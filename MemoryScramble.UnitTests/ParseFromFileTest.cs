@@ -1,9 +1,9 @@
 ﻿using MemoryScramble.API.Exceptions;
-using PR_lab3_MemoryScramble;
+using PR_lab3_MemoryScramble.API;
 
 namespace MemoryScramble.UnitTests;
 
-public class BoardTest
+public class ParseFromFileTest
 {
     [Theory]
     [InlineData("TestingBoards/WithInvalidSizeFormat/1.txt")]
