@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Text;
 
-namespace PR_lab3_MemoryScramble;
+namespace PR_lab3_MemoryScramble.API;
 
 public class Board
 {
@@ -93,7 +93,28 @@ public class Board
 
     public string ViewBy(string playerId)
     {
-        throw new NotImplementedException();
+        CheckRep();
+
+        var boardState = new StringBuilder();
+        boardState.AppendLine($"{Rows}x{Columns}");
+
+        for (int i = 0; i < Rows; i++)
+            for (int j = 0; j < Columns; j++)
+            {
+                var cell = _grid[i, j];
+                
+                var spot = cell.Card switch
+                {
+                    null => "none",
+                    _ when !cell.IsUp => "down",
+                    _ when IsControlledBy((i, j), playerId) => $"my {cell.Card}",
+                    _ => $"up {cell.Card}"
+                };
+
+                boardState.AppendLine(spot);
+            }
+
+        return boardState.ToString();
     }
 
     public string Flip(string playerId, int row, int column)
@@ -209,8 +230,9 @@ public class Board
             $"Player {playerId}'s {cardName} must be an existent, face-up card.");
 
         if (isFirst)
-            Debug.Assert(IsControlledBy(pos, playerId),
-                $"Player {playerId}'s FirstCard must be controlled by that player.");
+            if (_players[playerId].SecondCard == null)
+                Debug.Assert(IsControlledBy(pos, playerId),
+                    $"Player {playerId}'s FirstCard must be controlled by that player.");
         else
             if (IsControlledBy(pos, playerId))
             {

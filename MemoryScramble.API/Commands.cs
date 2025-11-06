@@ -1,4 +1,4 @@
-﻿namespace PR_lab3_MemoryScramble;
+﻿namespace PR_lab3_MemoryScramble.API;
 
 public static class Commands
 {
