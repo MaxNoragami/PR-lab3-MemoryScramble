@@ -91,14 +91,36 @@ public class Board
         return new Board(rows, columns, grid);
     }
 
-    public string Look(string playerId)
+    public string ViewBy(string playerId)
     {
         throw new NotImplementedException();
     }
 
     public string Flip(string playerId, int row, int column)
     {
-        throw new NotImplementedException();
+        CheckRep();
+
+        if (string.IsNullOrWhiteSpace(playerId))
+            throw new ArgumentException("Player ID cannot be null or empty.", nameof(playerId));
+
+        if (!IsValidPosition(row, column))
+            throw new ArgumentOutOfRangeException($"Position ({row},{column}) is out of bounds.");
+
+        if (!_players.ContainsKey(playerId))
+            _players[playerId] = new PlayerState();
+
+        var playerState = _players[playerId];
+
+        if (playerState.SecondCard != null)
+            CleanupPreviousMove(playerId);
+
+        if (playerState.FirstCard == null)
+            FlipFirstCard(playerId, row, column);
+        else
+            FlipSecondCard(playerId, row, column);
+
+        CheckRep();
+        return ViewBy(playerId);
     }
 
     public override string ToString()
@@ -140,59 +162,63 @@ public class Board
                     Debug.Assert(!_controlledBy.ContainsKey((i, j)), "Removed card cannot be controlled.");
                 }
                 else
-                    Debug.Assert(CardRegex.IsMatch(cell.Card), $"Invalid card string at ({i},{j}): '{cell.Card}'");
+                    Debug.Assert(CardRegex.IsMatch(cell.Card), 
+                        $"Invalid card string at ({i},{j}): '{cell.Card}'");
             }
 
-        foreach (var kvp in _controlledBy)
+        foreach (var (pos, pid) in _controlledBy)
         {
-            var pos = kvp.Key;
-            var pid = kvp.Value;
+            var (row, col) = pos;
 
-            var row = pos.Row;
-            var col = pos.Column;
-
-            Debug.Assert(row >= 0 && row < Rows && col >= 0 && col < Columns, "Controlled card out of bounds.");
+            Debug.Assert(IsValidPosition(row, col), "Controlled card out of bounds.");
 
             var cell = _grid[row, col];
             Debug.Assert(cell.Card != null, "Controlled card must exist.");
             Debug.Assert(cell.IsUp, "Controlled card must be face up.");
-
             Debug.Assert(!string.IsNullOrEmpty(pid), "ControlledBy contains empty player id.");
             Debug.Assert(_players.ContainsKey(pid), $"_controlledBy references unknown player '{pid}'.");
 
             var pstate = _players[pid];
-            bool inPlayerState = (pstate.FirstCard != null && pstate.FirstCard.Value == (row, col))
-                                 || (pstate.SecondCard != null && pstate.SecondCard.Value == (row, col));
-            Debug.Assert(inPlayerState, $"_controlledBy position ({row},{col}) not present in player {pid}'s state.");
+            bool inPlayerState = pstate.FirstCard == pos || pstate.SecondCard == pos;
+            Debug.Assert(inPlayerState, 
+                $"_controlledBy position ({row},{col}) not present in player {pid}'s state.");
         }
 
-        foreach (var kvp in _players)
+        foreach (var (pid, state) in _players)
         {
-            var pid = kvp.Key;
-            var st = kvp.Value;
+            Debug.Assert(!(state.FirstCard == null && state.SecondCard != null),
+                $"Player {pid} has SecondCard but no FirstCard.");
 
-            Debug.Assert(!(st.FirstCard == null && st.SecondCard != null), $"Player {pid} has SecondCard but no FirstCard.");
+            if (state.FirstCard != null)
+                CheckPlayerCard(pid, state.FirstCard.Value, isFirst: true);
 
-            if (st.FirstCard != null)
-            {
-                var (r, c) = st.FirstCard.Value;
-                Debug.Assert(r >= 0 && r < Rows && c >= 0 && c < Columns, $"Player {pid}'s FirstCard out of bounds.");
-                var cell = _grid[r, c];
-                Debug.Assert(cell.Card != null && cell.IsUp, $"Player {pid}'s FirstCard must be a real, face-up card.");
-                Debug.Assert(_controlledBy.ContainsKey((r, c)) && _controlledBy[(r, c)] == pid,
-                    $"Player {pid}'s FirstCard must be controlled by that player.");
-            }
-
-            if (st.SecondCard != null)
-            {
-                var (r, c) = st.SecondCard.Value;
-                Debug.Assert(r >= 0 && r < Rows && c >= 0 && c < Columns, $"Player {pid}'s SecondCard out of bounds.");
-                var cell = _grid[r, c];
-                Debug.Assert(cell.Card != null && cell.IsUp, $"Player {pid}'s SecondCard must be a real, face-up card.");
-                Debug.Assert(_controlledBy.ContainsKey((r, c)) && _controlledBy[(r, c)] == pid,
-                    $"Player {pid}'s SecondCard must be controlled by that player.");
-            }
+            if (state.SecondCard != null)
+                CheckPlayerCard(pid, state.SecondCard.Value, isFirst: false);
         }
+    }
+
+    private void CheckPlayerCard(string playerId, (int Row, int Column) pos, bool isFirst)
+    {
+        var cardName = isFirst ? "FirstCard" : "SecondCard";
+        var (r, c) = pos;
+
+        Debug.Assert(IsValidPosition(r, c), $"Player {playerId}'s {cardName} out of bounds.");
+
+        var cell = _grid[r, c];
+        Debug.Assert(cell.Card != null && cell.IsUp,
+            $"Player {playerId}'s {cardName} must be an existent, face-up card.");
+
+        if (isFirst)
+            Debug.Assert(IsControlledBy(pos, playerId),
+                $"Player {playerId}'s FirstCard must be controlled by that player.");
+        else
+            if (IsControlledBy(pos, playerId))
+            {
+                var firstPos = _players[playerId].FirstCard!.Value;
+                var firstCell = _grid[firstPos.Row, firstPos.Column];
+                Debug.Assert(firstCell.Card == cell.Card,
+                    "If player controls SecondCard, cards must match.");
+            }
     }
 
     private static async Task<string[]> ReadAllLinesAsync(string fileName)
@@ -204,5 +230,133 @@ public class Board
             throw new FileNotFoundException($"Could not find file '{fileName}' at {filePath}.");
 
         return await File.ReadAllLinesAsync(filePath);
+    }
+
+    private bool IsValidPosition(int row, int column)
+        => row >= 0 && row < Rows && column >= 0 && column < Columns;
+
+    private bool IsControlled((int Row, int Column) pos)
+        => _controlledBy.ContainsKey(pos);
+
+    private bool IsControlledBy((int Row, int Column) pos, string playerId)
+        => _controlledBy.TryGetValue(pos, out var controller) && controller == playerId;
+
+    private void TakeControl(string playerId, (int Row, int Column) pos)
+        => _controlledBy[pos] = playerId;
+
+    private void GiveUpControl((int Row, int Column) pos)
+        => _controlledBy.Remove(pos);
+
+    private void FlipFirstCard(string playerId, int row, int column)
+    {
+        var cell = _grid[row, column];
+        var pos = (row, column);
+
+        // Rule 1-A: No card there
+        if (cell.Card == null)
+            throw new FlipException("No card at that position.");
+
+        // Rule 1-D: Card is controlled by another dude
+        if (IsControlled(pos) && !IsControlledBy(pos, playerId))
+            throw new FlipException("Card is controlled by another player.");
+
+        // Rule 1-B: Turn the card face up
+        if (!cell.IsUp)
+            cell.TurnUp();
+
+        // Rule 1-C: Player takes control, as card is already face up, due to 1-B and is not controlled by another as ensured in 1-D
+        TakeControl(playerId, pos);
+        _players[playerId].SetFirstCard(pos);
+    }
+
+    private void FlipSecondCard(string playerId, int row, int column)
+    {
+        var cell = _grid[row, column];
+        var pos = (row, column);
+        var playerState = _players[playerId];
+        var firstPos = playerState.FirstCard!.Value;
+        var firstCell = _grid[firstPos.Row, firstPos.Column];
+
+        // Rule 2-A: No card there
+        if (cell.Card == null)
+        {
+            GiveUpControl(firstPos);
+            playerState.ClearCards();
+            throw new FlipException("No card at that position.");
+        }
+        
+        // Rule 2-B: No waiting on second card, cannot select an already controlled card
+        if (IsControlled(pos))
+        {
+            GiveUpControl(firstPos);
+            playerState.ClearCards();
+            throw new FlipException("Card is already controlled.");
+        }
+
+        // Rule 2-C: Turn cards facing down to facing up
+        if (!cell.IsUp)
+            cell.TurnUp();
+
+        if (firstCell.Card != cell.Card)
+        {
+            // Rule 2-E: No match => give up control of both cards, they remain face up
+            GiveUpControl(firstPos);
+            playerState.SetSecondCard(pos);
+        }
+        else
+        {
+            // Rule 2-D: Match => keep control of both cards, they remain face up
+            TakeControl(playerId, pos);
+            playerState.SetSecondCard(pos);
+        }
+    }
+
+    private void CleanupPreviousMove(string playerId)
+    {
+        var playerState = _players[playerId];
+        var firstPos = playerState.FirstCard!.Value;
+        var secondPos = playerState.SecondCard!.Value;
+
+        var firstCell = _grid[firstPos.Row, firstPos.Column];
+        var secondCell = _grid[secondPos.Row, secondPos.Column];
+
+        bool matched = firstCell.Card != null && secondCell.Card != null
+                       && firstCell.Card == secondCell.Card;
+
+        if (matched)
+        {
+            // Rule 3-A: Remove matching pair
+            if (IsControlledBy(firstPos, playerId))
+            {
+                firstCell.Remove();
+                GiveUpControl(firstPos);
+            }
+
+            if (IsControlledBy(secondPos, playerId))
+            {
+                secondCell.Remove();
+                GiveUpControl(secondPos);
+            }
+        }
+        else
+        {
+            // Rule 3-B: Turn down non-matching cards if conditions are met
+            TurnDownIfPossible(firstPos);
+            TurnDownIfPossible(secondPos);
+        }
+
+        playerState.ClearCards();
+    }
+
+    private void TurnDownIfPossible((int Row, int Column) pos)
+    {
+        var cell = _grid[pos.Row, pos.Column];
+
+        // Rule 3-B: Turn face down if:
+        // - Card still exists
+        // - Card is face up
+        // - Card is not controlled by another player
+        if (cell.Card != null && cell.IsUp && !IsControlled(pos))
+            cell.TurnDown();
     }
 }
