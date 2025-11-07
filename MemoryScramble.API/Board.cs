@@ -95,6 +95,9 @@ public class Board
     {
         CheckRep();
 
+        if (string.IsNullOrWhiteSpace(playerId))
+            throw new ArgumentException("Player ID cannot be null or empty.", nameof(playerId));
+
         var boardState = new StringBuilder();
         boardState.AppendLine($"{Rows}x{Columns}");
 
@@ -312,7 +315,7 @@ public class Board
         {
             GiveUpControl(firstPos);
             playerState.ClearCards();
-            throw new FlipException("Card is controlled by another player.");
+            throw new FlipException("Card is already controlled.");
         }
 
         // Rule 2-C: Turn cards facing down to facing up
