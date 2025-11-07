@@ -306,7 +306,7 @@ public class Board
         if (cell.Card == null)
         {
             GiveUpControl(firstPos);
-            playerState.ClearCards();
+            playerState.SetSecondCard(firstPos);
             throw new FlipException("No card at that position.");
         }
         
@@ -314,7 +314,7 @@ public class Board
         if (IsControlled(pos))
         {
             GiveUpControl(firstPos);
-            playerState.ClearCards();
+            playerState.SetSecondCard(firstPos);
             throw new FlipException("Card is already controlled.");
         }
 
@@ -344,6 +344,14 @@ public class Board
 
         var firstCell = _grid[firstPos.Row, firstPos.Column];
         var secondCell = _grid[secondPos.Row, secondPos.Column];
+
+        if (firstPos == secondPos)
+        {
+            // Rule 3-B: Only first card to turn down, second flip failed
+            TurnDownIfPossible(firstPos);
+            playerState.ClearCards();
+            return;
+        }
 
         bool matched = firstCell.Card != null && secondCell.Card != null
                        && firstCell.Card == secondCell.Card;
