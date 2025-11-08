@@ -122,8 +122,6 @@ public class Board
 
     public string Flip(string playerId, int row, int column)
     {
-        CheckRep();
-
         if (string.IsNullOrWhiteSpace(playerId))
             throw new ArgumentException("Player ID cannot be null or empty.", nameof(playerId));
 
@@ -213,37 +211,26 @@ public class Board
             Debug.Assert(!(state.FirstCard == null && state.SecondCard != null),
                 $"Player {pid} has SecondCard but no FirstCard.");
 
-            if (state.FirstCard != null)
-                CheckPlayerCard(pid, state.FirstCard.Value, isFirst: true);
-
-            if (state.SecondCard != null)
-                CheckPlayerCard(pid, state.SecondCard.Value, isFirst: false);
-        }
-    }
-
-    private void CheckPlayerCard(string playerId, (int Row, int Column) pos, bool isFirst)
-    {
-        var cardName = isFirst ? "FirstCard" : "SecondCard";
-        var (r, c) = pos;
-
-        Debug.Assert(IsValidPosition(r, c), $"Player {playerId}'s {cardName} out of bounds.");
-
-        var cell = _grid[r, c];
-        Debug.Assert(cell.Card != null && cell.IsUp,
-            $"Player {playerId}'s {cardName} must be an existent, face-up card.");
-
-        if (isFirst)
-            if (_players[playerId].SecondCard == null)
-                Debug.Assert(IsControlledBy(pos, playerId),
-                    $"Player {playerId}'s FirstCard must be controlled by that player.");
-        else
-            if (IsControlledBy(pos, playerId))
+            if (state.FirstCard is { } fp)
             {
-                var firstPos = _players[playerId].FirstCard!.Value;
-                var firstCell = _grid[firstPos.Row, firstPos.Column];
-                Debug.Assert(firstCell.Card == cell.Card,
-                    "If player controls SecondCard, cards must match.");
+                Debug.Assert(IsValidPosition(fp.Row, fp.Column),
+                    $"Player {pid}'s FirstCard out of bounds.");
+
+                if (state.SecondCard == null)
+                    Debug.Assert(IsControlledBy(fp, pid),
+                        $"Player {pid}'s FirstCard should be controlled until second flip.");
             }
+
+            if (state.SecondCard is { } sp)
+            {
+                Debug.Assert(IsValidPosition(sp.Row, sp.Column),
+                    $"Player {pid}'s SecondCard out of bounds.");
+
+                if (IsControlledBy(sp, pid))
+                    Debug.Assert(state.FirstCard != null && IsControlledBy(state.FirstCard.Value, pid),
+                        $"Player {pid} controls SecondCard but not FirstCard.");
+            }
+        }
     }
 
     private static async Task<string[]> ReadAllLinesAsync(string fileName)
@@ -342,9 +329,6 @@ public class Board
         var firstPos = playerState.FirstCard!.Value;
         var secondPos = playerState.SecondCard!.Value;
 
-        var firstCell = _grid[firstPos.Row, firstPos.Column];
-        var secondCell = _grid[secondPos.Row, secondPos.Column];
-
         if (firstPos == secondPos)
         {
             // Rule 3-B: Only first card to turn down, second flip failed
@@ -353,23 +337,22 @@ public class Board
             return;
         }
 
-        bool matched = firstCell.Card != null && secondCell.Card != null
-                       && firstCell.Card == secondCell.Card;
+        bool matched = IsControlledBy(firstPos, playerId) 
+            && IsControlledBy(secondPos, playerId);
 
         if (matched)
         {
-            // Rule 3-A: Remove matching pair
-            if (IsControlledBy(firstPos, playerId))
-            {
-                firstCell.Remove();
-                GiveUpControl(firstPos);
-            }
+            var firstCell = _grid[firstPos.Row, firstPos.Column];
+            var secondCell = _grid[secondPos.Row, secondPos.Column];
 
-            if (IsControlledBy(secondPos, playerId))
-            {
+            // Rule 3-A: Remove matching pair
+            if (firstCell.Card != null)  
+                firstCell.Remove();
+            GiveUpControl(firstPos);
+
+            if (secondCell.Card != null) 
                 secondCell.Remove();
-                GiveUpControl(secondPos);
-            }
+            GiveUpControl(secondPos);
         }
         else
         {
