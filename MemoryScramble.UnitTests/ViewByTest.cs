@@ -28,7 +28,7 @@ public class ViewByTest
         var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
         var playerId = "max123";
 
-        board.Flip(playerId, 0, 0);
+        await board.Flip(playerId, 0, 0);
         var boardState = board.ViewBy(playerId);
 
         var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -47,7 +47,7 @@ public class ViewByTest
         var player1 = "max123";
         var player2 = "johnPork";
 
-        board.Flip(player1, 0, 0);
+        await board.Flip(player1, 0, 0);
         var boardState = board.ViewBy(player2);
 
         var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -65,9 +65,9 @@ public class ViewByTest
         var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
         var playerId = "max123";
 
-        board.Flip(playerId, 0, 0);
-        board.Flip(playerId, 0, 2);
-        board.Flip(playerId, 0, 1);
+        await board.Flip(playerId, 0, 0);
+        await board.Flip(playerId, 0, 2);
+        await board.Flip(playerId, 0, 1);
 
         var boardState = board.ViewBy(playerId);
 
@@ -89,10 +89,10 @@ public class ViewByTest
         var player1 = "max123";
         var player2 = "johnPork";
 
-        board.Flip(player1, 0, 0);
-        board.Flip(player1, 0, 2);
-        board.Flip(player1, 0, 1);
-        board.Flip(player1, 0, 3);
+        await board.Flip(player1, 0, 0);
+        await board.Flip(player1, 0, 2);
+        await board.Flip(player1, 0, 1);
+        await board.Flip(player1, 0, 3);
 
         var player1State = board.ViewBy(player1);
         var player2State = board.ViewBy(player2);
@@ -119,8 +119,8 @@ public class ViewByTest
         var player1 = "max123";
         var player2 = "johnPork";
 
-        board.Flip(player1, 0, 0);
-        board.Flip(player1, 0, 1);
+        await board.Flip(player1, 0, 0);
+        await board.Flip(player1, 0, 1);
 
         var player1State = board.ViewBy(player1);
         var player2State = board.ViewBy(player2);
@@ -152,13 +152,13 @@ public class ViewByTest
         var player2 = "bob";
         var player3 = "charlie";
 
-        board.Flip(player1, 0, 0);
-        board.Flip(player1, 1, 0);
+        await board.Flip(player1, 0, 0);
+        await board.Flip(player1, 1, 0);
 
-        board.Flip(player2, 0, 2);
-        board.Flip(player2, 1, 2);
+        await board.Flip(player2, 0, 2);
+        await board.Flip(player2, 1, 2);
 
-        board.Flip(player3, 0, 1);
+        await board.Flip(player3, 0, 1);
 
         var aliceState = board.ViewBy(player1);
         var bobState = board.ViewBy(player2);
@@ -192,9 +192,9 @@ public class ViewByTest
         var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
         var playerId = "max123";
 
-        board.Flip(playerId, 0, 0);
-        board.Flip(playerId, 0, 1);
-        board.Flip(playerId, 0, 4);
+        await board.Flip(playerId, 0, 0);
+        await board.Flip(playerId, 0, 1);
+        await board.Flip(playerId, 0, 4);
 
         var boardState = board.ViewBy(playerId);
 
