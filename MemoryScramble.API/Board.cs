@@ -72,7 +72,11 @@ public class Board
     public static async Task<Board> ParseFromFile(string fileName)
     {
         var dataLines = await ReadAllLinesAsync(fileName);
-
+        return ParseFromLines(dataLines);
+    }
+    
+    public static Board ParseFromLines(string[] dataLines)
+    {
         var header = dataLines[0];
 
         if (!GridHeaderRegex.IsMatch(header))
