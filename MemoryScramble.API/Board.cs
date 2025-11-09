@@ -5,6 +5,14 @@ using System.Text;
 
 namespace PR_lab3_MemoryScramble.API;
 
+public class Deferred<T>
+{
+    private TaskCompletionSource<T> _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Task<T> Task => _tcs.Task;
+    public void Resolve(T value) => _tcs.TrySetResult(value);
+    public void Reject(Exception ex) => _tcs.TrySetException(ex);
+}
+
 public class Board
 {
     private class Cell(string? card)
@@ -38,6 +46,10 @@ public class Board
     private readonly Dictionary<(int Row, int Column), string> _controlledBy;
     private readonly Dictionary<string, PlayerState> _players;
 
+
+    private readonly Dictionary<(int Row, int Column), HashSet<Deferred<object?>>> _holds;
+    private readonly SemaphoreSlim _lock = new(1, 1);
+
     private static readonly Regex CardRegex = new(@"^\S+$", RegexOptions.Compiled);
     private static readonly Regex GridHeaderRegex = new(@"^[0-9]+x[0-9]+$", RegexOptions.Compiled);
 
@@ -46,13 +58,14 @@ public class Board
     public int Columns { get; init; }
 
 
-    private Board(int rows, int columns, Cell[,] grid) 
+    private Board(int rows, int columns, Cell[,] grid)
     {
         Rows = rows;
         Columns = columns;
         _grid = grid;
         _controlledBy = new();
         _players = new();
+        _holds = new();
         CheckRep();
     }
 
@@ -81,12 +94,12 @@ public class Board
             for (int j = 0; j < columns; j++)
             {
                 var card = dataLines[(i * columns) + j + 1];
-                
+
                 if (!CardRegex.IsMatch(card))
                     throw new InvalidGridFormatException($"Invalid card '{card}', cards must be non-empty and contain no whitespace.");
 
                 grid[i, j] = new Cell(card);
-            }          
+            }
 
         return new Board(rows, columns, grid);
     }
@@ -105,7 +118,7 @@ public class Board
             for (int j = 0; j < Columns; j++)
             {
                 var cell = _grid[i, j];
-                
+
                 var spot = cell.Card switch
                 {
                     null => "none",
@@ -120,7 +133,7 @@ public class Board
         return boardState.ToString();
     }
 
-    public string Flip(string playerId, int row, int column)
+    public async Task<string> Flip(string playerId, int row, int column)
     {
         if (string.IsNullOrWhiteSpace(playerId))
             throw new ArgumentException("Player ID cannot be null or empty.", nameof(playerId));
@@ -128,21 +141,32 @@ public class Board
         if (!IsValidPosition(row, column))
             throw new ArgumentOutOfRangeException($"Position ({row},{column}) is out of bounds.");
 
-        if (!_players.ContainsKey(playerId))
-            _players[playerId] = new PlayerState();
+        var toResolve = new List<Deferred<object?>>();
+        await _lock.WaitAsync();
+        try
+        {
+            if (!_players.ContainsKey(playerId))
+                _players[playerId] = new PlayerState();
 
-        var playerState = _players[playerId];
+            var playerState = _players[playerId];
 
-        if (playerState.SecondCard != null)
-            CleanupPreviousMove(playerId);
+            if (playerState.SecondCard != null)
+                CleanupPreviousMove(playerId, toResolve);
 
-        if (playerState.FirstCard == null)
-            FlipFirstCard(playerId, row, column);
-        else
-            FlipSecondCard(playerId, row, column);
+            if (playerState.FirstCard == null)
+                await FlipFirstCardAsync(playerId, row, column);
+            else
+                FlipSecondCard(playerId, row, column, toResolve);
 
-        CheckRep();
-        return ViewBy(playerId);
+            CheckRep();
+            return ViewBy(playerId); 
+        }
+        finally
+        {
+            _lock.Release();
+            foreach (var hold in toResolve)
+                hold.Resolve(null);
+        }
     }
 
     public override string ToString()
@@ -184,7 +208,7 @@ public class Board
                     Debug.Assert(!_controlledBy.ContainsKey((i, j)), "Removed card cannot be controlled.");
                 }
                 else
-                    Debug.Assert(CardRegex.IsMatch(cell.Card), 
+                    Debug.Assert(CardRegex.IsMatch(cell.Card),
                         $"Invalid card string at ({i},{j}): '{cell.Card}'");
             }
 
@@ -202,7 +226,7 @@ public class Board
 
             var pstate = _players[pid];
             bool inPlayerState = pstate.FirstCard == pos || pstate.SecondCard == pos;
-            Debug.Assert(inPlayerState, 
+            Debug.Assert(inPlayerState,
                 $"_controlledBy position ({row},{col}) not present in player {pid}'s state.");
         }
 
@@ -256,10 +280,19 @@ public class Board
     private void TakeControl(string playerId, (int Row, int Column) pos)
         => _controlledBy[pos] = playerId;
 
-    private void GiveUpControl((int Row, int Column) pos)
-        => _controlledBy.Remove(pos);
+    private void GiveUpControl((int Row, int Column) pos, List<Deferred<object?>> toResolve)
+    {
+        _controlledBy.Remove(pos);
 
-    private void FlipFirstCard(string playerId, int row, int column)
+        if (_holds.TryGetValue(pos, out var waiters) && waiters.Count > 0)
+        {
+            toResolve.AddRange(waiters);
+            waiters.Clear();
+            _holds.Remove(pos);
+        }
+    }
+
+    private async Task FlipFirstCardAsync(string playerId, int row, int column)
     {
         var cell = _grid[row, column];
         var pos = (row, column);
@@ -269,8 +302,35 @@ public class Board
             throw new FlipException("No card at that position.");
 
         // Rule 1-D: Card is controlled by another dude
-        if (IsControlled(pos) && !IsControlledBy(pos, playerId))
-            throw new FlipException("Card is controlled by another player.");
+        while (IsControlled(pos) && !IsControlledBy(pos, playerId))
+        {
+            var hold = new Deferred<object?>();
+
+            if (!_holds.ContainsKey(pos))
+                _holds[pos] = new HashSet<Deferred<object?>>();
+
+            _holds[pos].Add(hold);
+
+            _lock.Release();
+            try
+            {
+                await hold.Task;
+            }
+            finally
+            {
+                await _lock.WaitAsync();
+
+                if (_holds.TryGetValue(pos, out var waiters))
+                {
+                    waiters.Remove(hold);
+                    if (waiters.Count == 0)
+                        _holds.Remove(pos);
+                }
+            }
+
+            if (cell.Card == null)
+                throw new FlipException("No card at that position.");
+        }
 
         // Rule 1-B: Turn the card face up
         if (!cell.IsUp)
@@ -281,7 +341,7 @@ public class Board
         _players[playerId].SetFirstCard(pos);
     }
 
-    private void FlipSecondCard(string playerId, int row, int column)
+    private void FlipSecondCard(string playerId, int row, int column, List<Deferred<object?>> toResolve)
     {
         var cell = _grid[row, column];
         var pos = (row, column);
@@ -292,15 +352,15 @@ public class Board
         // Rule 2-A: No card there
         if (cell.Card == null)
         {
-            GiveUpControl(firstPos);
+            GiveUpControl(firstPos, toResolve);
             playerState.SetSecondCard(firstPos);
             throw new FlipException("No card at that position.");
         }
-        
+
         // Rule 2-B: No waiting on second card, cannot select an already controlled card
         if (IsControlled(pos))
         {
-            GiveUpControl(firstPos);
+            GiveUpControl(firstPos, toResolve);
             playerState.SetSecondCard(firstPos);
             throw new FlipException("Card is already controlled.");
         }
@@ -312,7 +372,7 @@ public class Board
         if (firstCell.Card != cell.Card)
         {
             // Rule 2-E: No match => give up control of both cards, they remain face up
-            GiveUpControl(firstPos);
+            GiveUpControl(firstPos, toResolve);
             playerState.SetSecondCard(pos);
         }
         else
@@ -323,7 +383,7 @@ public class Board
         }
     }
 
-    private void CleanupPreviousMove(string playerId)
+    private void CleanupPreviousMove(string playerId, List<Deferred<object?>> toResolve)
     {
         var playerState = _players[playerId];
         var firstPos = playerState.FirstCard!.Value;
@@ -337,7 +397,7 @@ public class Board
             return;
         }
 
-        bool matched = IsControlledBy(firstPos, playerId) 
+        bool matched = IsControlledBy(firstPos, playerId)
             && IsControlledBy(secondPos, playerId);
 
         if (matched)
@@ -346,13 +406,13 @@ public class Board
             var secondCell = _grid[secondPos.Row, secondPos.Column];
 
             // Rule 3-A: Remove matching pair
-            if (firstCell.Card != null)  
+            if (firstCell.Card != null)
                 firstCell.Remove();
-            GiveUpControl(firstPos);
+            GiveUpControl(firstPos, toResolve);
 
-            if (secondCell.Card != null) 
+            if (secondCell.Card != null)
                 secondCell.Remove();
-            GiveUpControl(secondPos);
+            GiveUpControl(secondPos, toResolve);
         }
         else
         {
