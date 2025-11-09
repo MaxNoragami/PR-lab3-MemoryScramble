@@ -24,6 +24,12 @@ public class Board
         public void TurnUp() { if (Card != null) IsUp = true; }
         public void TurnDown() { if (Card != null) IsUp = false; }
         public void Remove() { Card = null; IsUp = false; }
+        public void Replace(string newCard)
+        {
+            if (string.IsNullOrWhiteSpace(newCard))
+                throw new ArgumentException("Replacement card must be nonempty.");
+            Card = newCard;
+        }
     }
 
     private class PlayerState
@@ -163,7 +169,7 @@ public class Board
                 FlipSecondCard(playerId, row, column, toResolve);
 
             CheckRep();
-            return ViewBy(playerId); 
+            return ViewBy(playerId);
         }
         finally
         {
@@ -172,6 +178,73 @@ public class Board
                 hold.Resolve(null);
         }
     }
+    
+    public async Task Map(Func<string, Task<string>> f)
+    {
+        if (f is null) 
+            throw new ArgumentNullException(nameof(f));
+
+        // Snapshot groups of positions by their ORIGINAL card value
+        Dictionary<string, List<(int Row, int Column)>> groups;
+        await _lock.WaitAsync();
+        try
+        {
+            groups = new();
+            for (int i = 0; i < Rows; i++)
+                for (int j = 0; j < Columns; j++)
+                {
+                    var cell = _grid[i, j];
+                    if (cell.Card is null) continue; // removed -> skip
+                    var key = cell.Card;
+                    if (!groups.TryGetValue(key, out var list))
+                    {
+                        list = new List<(int,int)>();
+                        groups[key] = list;
+                    }
+                    list.Add((i, j));
+                }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        // For each distinct original value, transform once async, then atomically replace all its copies
+        var tasks = new List<Task>(capacity: groups.Count);
+        
+        foreach (var (original, positions) in groups)
+        {
+            tasks.Add(Task.Run(async () =>
+            {
+                // Compute replacement WITHOUT holding the board lock
+                var replacement = await f(original).ConfigureAwait(false);
+                if (replacement is null)
+                    throw new ArgumentException("Transformer returned null.");
+                if (!CardRegex.IsMatch(replacement))
+                    throw new ArgumentException($"Transformer produced invalid card '{replacement}'.");
+
+                // Apply to all cells that STILL have the original value, atomically as one step
+                await _lock.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    foreach (var (r, c) in positions)
+                    {
+                        var cell = _grid[r, c];
+                        if (cell.Card == original)
+                            cell.Replace(replacement);
+                    }
+                    CheckRep();
+                }
+                finally
+                {
+                    _lock.Release();
+                }
+            }));
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+    }
+
 
     public override string ToString()
     {

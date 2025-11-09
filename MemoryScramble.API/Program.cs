@@ -47,6 +47,29 @@ app.MapGet("/flip/{playerId}/{location}", async (string playerId, string locatio
     }
 });
 
+app.MapGet("/replace/{playerId}/{fromCard}/{toCard}", async (string playerId, string fromCard, string toCard) =>
+{
+    if (string.IsNullOrWhiteSpace(playerId) ||
+        string.IsNullOrWhiteSpace(fromCard) ||
+        string.IsNullOrWhiteSpace(toCard))
+        return Results.Text("Invalid parameters", "text/plain", statusCode: 409);
+
+    try
+    {
+        var boardState = await Commands.Map(
+            board,
+            playerId,
+            async card => card == fromCard ? toCard : card);
+
+        return Results.Text(boardState, "text/plain");
+    }
+    catch (Exception ex)
+    {
+        return Results.Text($"Error: {ex.Message}", "text/plain", statusCode: 409);
+    }
+});
+
+
 app.UseCors(policy => policy
     .AllowAnyOrigin()
     .AllowAnyMethod()
