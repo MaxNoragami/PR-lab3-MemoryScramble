@@ -28,6 +28,8 @@ public class Board
         {
             if (string.IsNullOrWhiteSpace(newCard))
                 throw new ArgumentException("Replacement card must be nonempty.");
+            if (Card == newCard)
+                return;
             Card = newCard;
         }
     }
@@ -55,6 +57,9 @@ public class Board
 
     private readonly Dictionary<(int Row, int Column), HashSet<Deferred<object?>>> _holds;
     private readonly SemaphoreSlim _lock = new(1, 1);
+
+    private readonly Dictionary<Deferred<string>, string> _watchers = new();
+
 
     private static readonly Regex CardRegex = new(@"^\S+$", RegexOptions.Compiled);
     private static readonly Regex GridHeaderRegex = new(@"^[0-9]+x[0-9]+$", RegexOptions.Compiled);
@@ -152,6 +157,8 @@ public class Board
             throw new ArgumentOutOfRangeException($"Position ({row},{column}) is out of bounds.");
 
         var toResolve = new List<Deferred<object?>>();
+        var visibleChanged = false;
+
         await _lock.WaitAsync();
         try
         {
@@ -161,12 +168,12 @@ public class Board
             var playerState = _players[playerId];
 
             if (playerState.SecondCard != null)
-                CleanupPreviousMove(playerId, toResolve);
+                visibleChanged |= CleanupPreviousMove(playerId, toResolve);
 
             if (playerState.FirstCard == null)
-                await FlipFirstCardAsync(playerId, row, column);
+                visibleChanged |= await FlipFirstCardAsync(playerId, row, column);
             else
-                FlipSecondCard(playerId, row, column, toResolve);
+                visibleChanged |= FlipSecondCard(playerId, row, column, toResolve);
 
             CheckRep();
             return ViewBy(playerId);
@@ -176,12 +183,15 @@ public class Board
             _lock.Release();
             foreach (var hold in toResolve)
                 hold.Resolve(null);
+            
+            if (visibleChanged)
+                await NotifyWatchersAsync();
         }
     }
-    
+
     public async Task Map(Func<string, Task<string>> f)
     {
-        if (f is null) 
+        if (f is null)
             throw new ArgumentNullException(nameof(f));
 
         // Snapshot groups of positions by their ORIGINAL card value
@@ -194,11 +204,13 @@ public class Board
                 for (int j = 0; j < Columns; j++)
                 {
                     var cell = _grid[i, j];
-                    if (cell.Card is null) continue; // removed -> skip
+                    if (cell.Card is null)
+                        continue;
+                    
                     var key = cell.Card;
                     if (!groups.TryGetValue(key, out var list))
                     {
-                        list = new List<(int,int)>();
+                        list = new List<(int, int)>();
                         groups[key] = list;
                     }
                     list.Add((i, j));
@@ -211,7 +223,7 @@ public class Board
 
         // For each distinct original value, transform once async, then atomically replace all its copies
         var tasks = new List<Task>(capacity: groups.Count);
-        
+
         foreach (var (original, positions) in groups)
         {
             tasks.Add(Task.Run(async () =>
@@ -223,7 +235,12 @@ public class Board
                 if (!CardRegex.IsMatch(replacement))
                     throw new ArgumentException($"Transformer produced invalid card '{replacement}'.");
 
-                // Apply to all cells that STILL have the original value, atomically as one step
+                if (replacement == original)
+                    return;
+
+                var notify = false;
+
+                // Apply to all cells that STILL have the original value, atomically as one step, then after releasing the lock notify watchers
                 await _lock.WaitAsync().ConfigureAwait(false);
                 try
                 {
@@ -231,7 +248,10 @@ public class Board
                     {
                         var cell = _grid[r, c];
                         if (cell.Card == original)
+                        {
                             cell.Replace(replacement);
+                            notify = true;
+                        }
                     }
                     CheckRep();
                 }
@@ -239,12 +259,55 @@ public class Board
                 {
                     _lock.Release();
                 }
+
+                if (notify)
+                    await NotifyWatchersAsync().ConfigureAwait(false);
             }));
         }
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
+    public async Task<string> Watch(string playerId)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+            throw new ArgumentException("Player ID cannot be null or empty.", nameof(playerId));
+
+        var watcher = new Deferred<string>();
+
+        await _lock.WaitAsync();
+        try
+        {
+            _watchers[watcher] = playerId;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return await watcher.Task;
+    }
+    
+    private async Task NotifyWatchersAsync()
+    {
+        List<(Deferred<string> w, string pid)> snapshot;
+
+        await _lock.WaitAsync();
+        try
+        {
+            if (_watchers.Count == 0)
+                return;
+            snapshot = _watchers.Select(kv => (kv.Key, kv.Value)).ToList();
+            _watchers.Clear();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        foreach (var (watcher, playerId) in snapshot)
+            watcher.Resolve(ViewBy(playerId));
+    }
 
     public override string ToString()
     {
@@ -357,6 +420,43 @@ public class Board
     private void TakeControl(string playerId, (int Row, int Column) pos)
         => _controlledBy[pos] = playerId;
 
+    private bool TurnUpIfNeeded(Cell cell)
+    {
+        if (!cell.IsUp && cell.Card != null)
+        {
+            cell.TurnUp();
+            return true; 
+        }
+        return false;
+    }
+
+    private bool TurnDownIfPossible((int Row, int Column) pos)
+    {
+        var cell = _grid[pos.Row, pos.Column];
+
+        // Rule 3-B: Turn face down if:
+        // - Card still exists
+        // - Card is face up
+        // - Card is not controlled by another player
+        if (cell.Card != null && cell.IsUp && !IsControlled(pos))
+        {
+            cell.TurnDown();
+            return true;
+        }
+        return false;
+    }
+
+    private bool RemoveIfPresent((int Row, int Column) pos)
+    {
+        var cell = _grid[pos.Row, pos.Column];
+        if (cell.Card != null)
+        {
+            cell.Remove();
+            return true; 
+        }
+        return false;
+    }
+    
     private void GiveUpControl((int Row, int Column) pos, List<Deferred<object?>> toResolve)
     {
         _controlledBy.Remove(pos);
@@ -369,7 +469,7 @@ public class Board
         }
     }
 
-    private async Task FlipFirstCardAsync(string playerId, int row, int column)
+    private async Task<bool> FlipFirstCardAsync(string playerId, int row, int column)
     {
         var cell = _grid[row, column];
         var pos = (row, column);
@@ -410,15 +510,15 @@ public class Board
         }
 
         // Rule 1-B: Turn the card face up
-        if (!cell.IsUp)
-            cell.TurnUp();
+        var changed = TurnUpIfNeeded(cell);
 
         // Rule 1-C: Player takes control, as card is already face up, due to 1-B and is not controlled by another as ensured in 1-D
         TakeControl(playerId, pos);
         _players[playerId].SetFirstCard(pos);
+        return changed;
     }
 
-    private void FlipSecondCard(string playerId, int row, int column, List<Deferred<object?>> toResolve)
+    private bool FlipSecondCard(string playerId, int row, int column, List<Deferred<object?>> toResolve)
     {
         var cell = _grid[row, column];
         var pos = (row, column);
@@ -440,11 +540,10 @@ public class Board
             GiveUpControl(firstPos, toResolve);
             playerState.SetSecondCard(firstPos);
             throw new FlipException("Card is already controlled.");
-        }
+        }   
 
         // Rule 2-C: Turn cards facing down to facing up
-        if (!cell.IsUp)
-            cell.TurnUp();
+        var changed = TurnUpIfNeeded(cell);
 
         if (firstCell.Card != cell.Card)
         {
@@ -458,20 +557,24 @@ public class Board
             TakeControl(playerId, pos);
             playerState.SetSecondCard(pos);
         }
+
+        return changed;
     }
 
-    private void CleanupPreviousMove(string playerId, List<Deferred<object?>> toResolve)
+    private bool CleanupPreviousMove(string playerId, List<Deferred<object?>> toResolve)
     {
         var playerState = _players[playerId];
         var firstPos = playerState.FirstCard!.Value;
         var secondPos = playerState.SecondCard!.Value;
 
+        var changed = false;
+
         if (firstPos == secondPos)
         {
             // Rule 3-B: Only first card to turn down, second flip failed
-            TurnDownIfPossible(firstPos);
+            changed |= TurnDownIfPossible(firstPos);
             playerState.ClearCards();
-            return;
+            return changed;
         }
 
         bool matched = IsControlledBy(firstPos, playerId)
@@ -479,37 +582,20 @@ public class Board
 
         if (matched)
         {
-            var firstCell = _grid[firstPos.Row, firstPos.Column];
-            var secondCell = _grid[secondPos.Row, secondPos.Column];
-
-            // Rule 3-A: Remove matching pair
-            if (firstCell.Card != null)
-                firstCell.Remove();
+            changed |= RemoveIfPresent(firstPos);
             GiveUpControl(firstPos, toResolve);
 
-            if (secondCell.Card != null)
-                secondCell.Remove();
+            changed |= RemoveIfPresent(secondPos);
             GiveUpControl(secondPos, toResolve);
         }
         else
         {
             // Rule 3-B: Turn down non-matching cards if conditions are met
-            TurnDownIfPossible(firstPos);
-            TurnDownIfPossible(secondPos);
+            changed |= TurnDownIfPossible(firstPos);
+            changed |= TurnDownIfPossible(secondPos);
         }
 
         playerState.ClearCards();
-    }
-
-    private void TurnDownIfPossible((int Row, int Column) pos)
-    {
-        var cell = _grid[pos.Row, pos.Column];
-
-        // Rule 3-B: Turn face down if:
-        // - Card still exists
-        // - Card is face up
-        // - Card is not controlled by another player
-        if (cell.Card != null && cell.IsUp && !IsControlled(pos))
-            cell.TurnDown();
+        return changed;
     }
 }
