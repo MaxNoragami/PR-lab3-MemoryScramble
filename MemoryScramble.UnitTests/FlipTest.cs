@@ -57,7 +57,8 @@ public class FlipTest
         var secondPlayerId = "johnPork";
 
         await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
-        var boardStateBeforeFirst = await board.Flip(firstPlayerId, 0, 1); // B - SecondCard P1 (no match)
+        await board.Flip(firstPlayerId, 0, 1); // B - SecondCard P1 (no match)
+        var boardStateBeforeFirst = board.ViewBy(firstPlayerId);
         var boardStateBeforeSecond = board.ViewBy(secondPlayerId);
 
         // Rule 1-C: Player takes control, as card is already face up and not controlled
@@ -92,7 +93,8 @@ public class FlipTest
         Assert.False(p2FlipTask.IsCompleted);
 
         await board.Flip(firstPlayerId, 0, 1); // B - SecondCard P1 (no match)
-        var boardStateSecond = await p2FlipTask;
+        await p2FlipTask;
+        var boardStateSecond = board.ViewBy(secondPlayerId);
 
         var boardStateFirst = board.ViewBy(firstPlayerId);
         var linesFirst = boardStateFirst.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -135,8 +137,11 @@ public class FlipTest
         var secondPlayerId = "johnPork";
 
         await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
-        var boardStateBeforeFirst = await board.Flip(firstPlayerId, 0, 2); // A - SecondCard P1 (match)
-        var boardStateBeforeSecond = await board.Flip(secondPlayerId, 0, 4); // A - FirstCard P2
+        await board.Flip(firstPlayerId, 0, 2); // A - SecondCard P1 (match)
+        var boardStateBeforeFirst = board.ViewBy(firstPlayerId);
+
+        await board.Flip(secondPlayerId, 0, 4); // A - FirstCard P2
+        var boardStateBeforeSecond = board.ViewBy(secondPlayerId);
 
         // Rule 2-B: No waiting on second card, cannot select an already controlled card
         var exception = await Assert.ThrowsAsync<FlipException>(() =>
@@ -170,7 +175,8 @@ public class FlipTest
         var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
         var playerId = "max123";
 
-        var boardStateFlipFirst = await board.Flip(playerId, 0, 0); // A - FirstCard
+        await board.Flip(playerId, 0, 0); // A - FirstCard
+        var boardStateFlipFirst = board.ViewBy(playerId);
 
         // Rule 2-B: Can't flip your own FirstCard as SecondCard
         var exception = await Assert.ThrowsAsync<FlipException>(() =>
@@ -194,9 +200,12 @@ public class FlipTest
         var secondPlayerId = "johnPork";
 
         // Rule 2-C: Turn cards facing down to facing up
-        var boardStateBeforeFlipFirst = await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
+        await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
+        var boardStateBeforeFlipFirst = board.ViewBy(firstPlayerId);
         var boardStateBeforeFlipSecond = board.ViewBy(secondPlayerId);
-        var boardStateAfterFlipFirst = await board.Flip(firstPlayerId, 0, 2); // A - SecondCard P1 (match)
+
+        await board.Flip(firstPlayerId, 0, 2); // A - SecondCard P1 (match)
+        var boardStateAfterFlipFirst = board.ViewBy(firstPlayerId);
         var boardStateAfterFlipSecond = board.ViewBy(secondPlayerId);
 
         var beforeFlipLinesFirst = boardStateBeforeFlipFirst.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -222,10 +231,13 @@ public class FlipTest
         var firstPlayerId = "max123";
         var secondPlayerId = "johnPork";
 
-        var boardStateBeforeFlipFirst = await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
+        await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
         var boardStateBeforeFlipSecond = board.ViewBy(secondPlayerId);
-        var boardStateAfterFlipFirst = await board.Flip(firstPlayerId, 0, 2); // A - SecondCard P1 (match)
+        var boardStateBeforeFlipFirst = board.ViewBy(firstPlayerId);
+
+        await board.Flip(firstPlayerId, 0, 2); // A - SecondCard P1 (match)
         var boardStateAfterFlipSecond = board.ViewBy(secondPlayerId);
+        var boardStateAfterFlipFirst = board.ViewBy(firstPlayerId);
 
         var beforeFlipLinesFirst = boardStateBeforeFlipFirst.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var beforeFlipLinesSecond = boardStateBeforeFlipSecond.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -250,12 +262,16 @@ public class FlipTest
         var firstPlayerId = "max123";
         var secondPlayerId = "johnPork";
 
-        var boardStateBeforeFlipFirst = await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
+        await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
+        var boardStateBeforeFlipFirst = board.ViewBy(firstPlayerId);
         var boardStateBeforeFlipSecond = board.ViewBy(secondPlayerId);
 
         // Rule 2-E: No match => give up control of both cards, they remain face up
-        var boardStateAfterFlipFirst = await board.Flip(firstPlayerId, 0, 1); // B - SecondCard P1 (no match)
-        var boardStateAfterFlipSecond = await board.Flip(secondPlayerId, 0, 1); // B - FirstCard P2
+        await board.Flip(firstPlayerId, 0, 1); // B - SecondCard P1 (no match)
+        var boardStateAfterFlipFirst = board.ViewBy(firstPlayerId);
+
+        await board.Flip(secondPlayerId, 0, 1); // B - FirstCard P2
+        var boardStateAfterFlipSecond = board.ViewBy(secondPlayerId);
 
         var beforeFlipLinesFirst = boardStateBeforeFlipFirst.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var beforeFlipLinesSecond = boardStateBeforeFlipSecond.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
