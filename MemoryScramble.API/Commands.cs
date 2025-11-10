@@ -13,4 +13,7 @@ public static class Commands
         await board.Map(f);
         return board.ViewBy(playerId);
     }
+
+    public static async Task<string> Watch(Board board, string playerId)
+        => await board.Watch(playerId);
 }

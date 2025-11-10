@@ -69,6 +69,22 @@ app.MapGet("/replace/{playerId}/{fromCard}/{toCard}", async (string playerId, st
     }
 });
 
+app.MapGet("/watch/{playerId}", async (string playerId) =>
+{
+    if (string.IsNullOrWhiteSpace(playerId))
+        return Results.Text("Invalid player ID", "text/plain", statusCode: 409);
+
+    try
+    {
+        var boardState = await Commands.Watch(board, playerId);
+        return Results.Text(boardState, "text/plain");
+    }
+    catch (Exception ex)
+    {
+        return Results.Text($"Error: {ex.Message}", "text/plain", statusCode: 409);
+    }
+});
+
 
 app.UseCors(policy => policy
     .AllowAnyOrigin()
