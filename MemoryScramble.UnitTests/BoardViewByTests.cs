@@ -4,10 +4,20 @@ namespace MemoryScramble.UnitTests;
 
 public class BoardViewByTests
 {
+    private static async Task<Board> LoadBoard()
+        => await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+
+    private static string SpotAt(string boardState, int row, int col)
+    {
+        var lines = boardState.Replace("\r", string.Empty)
+                              .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        return lines[1 + row * 5 + col];
+    }
+
     [Fact]
     public async Task Given_InitialBoard_When_ViewBy_Then_ReturnsAllCardsDown()
     {
-        var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+        var board = await LoadBoard();
         var playerId = "max123";
 
         var boardState = board.ViewBy(playerId);
@@ -24,7 +34,7 @@ public class BoardViewByTests
     [Fact]
     public async Task Given_PlayerControlsCard_When_ViewBy_Then_ShowsMyCard()
     {
-        var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+        var board = await LoadBoard();
         var playerId = "max123";
 
         await board.Flip(playerId, 0, 0);
@@ -33,7 +43,7 @@ public class BoardViewByTests
         var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
         Assert.Equal("5x5", lines[0]);
-        Assert.Equal("my A", lines[1]);
+        Assert.Equal("my A", SpotAt(boardState, 0, 0));
 
         for (int i = 2; i < lines.Length; i++)
             Assert.Equal("down", lines[i]);
@@ -42,7 +52,7 @@ public class BoardViewByTests
     [Fact]
     public async Task Given_AnotherPlayerControlsCard_When_ViewBy_Then_ShowsUpCard()
     {
-        var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+        var board = await LoadBoard();
         var player1 = "max123";
         var player2 = "johnPork";
 
@@ -52,7 +62,7 @@ public class BoardViewByTests
         var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
         Assert.Equal("5x5", lines[0]);
-        Assert.Equal("up A", lines[1]);
+        Assert.Equal("up A", SpotAt(boardState, 0, 0));
 
         for (int i = 2; i < lines.Length; i++)
             Assert.Equal("down", lines[i]);
@@ -61,7 +71,7 @@ public class BoardViewByTests
     [Fact]
     public async Task Given_MatchedPairRemoved_When_ViewBy_Then_ShowsNoneForRemovedCards()
     {
-        var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+        var board = await LoadBoard();
         var playerId = "max123";
 
         await board.Flip(playerId, 0, 0);
@@ -73,9 +83,9 @@ public class BoardViewByTests
         var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
         Assert.Equal("5x5", lines[0]);
-        Assert.Equal("none", lines[1]);
-        Assert.Equal("my B", lines[2]);
-        Assert.Equal("none", lines[3]);
+        Assert.Equal("none", SpotAt(boardState, 0, 0));
+        Assert.Equal("my B", SpotAt(boardState, 0, 1));
+        Assert.Equal("none", SpotAt(boardState, 0, 2));
 
         for (int i = 4; i < lines.Length; i++)
             Assert.Equal("down", lines[i]);
@@ -84,7 +94,7 @@ public class BoardViewByTests
     [Fact]
     public async Task Given_ComplexBoardState_When_ViewBy_Then_ShowsCorrectMixedStates()
     {
-        var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+        var board = await LoadBoard();
         var player1 = "max123";
         var player2 = "johnPork";
 
@@ -96,25 +106,21 @@ public class BoardViewByTests
         var player1State = board.ViewBy(player1);
         var player2State = board.ViewBy(player2);
 
-        var lines1 = player1State.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal("5x5", lines1[0]);
-        Assert.Equal("none", lines1[1]);
-        Assert.Equal("my B", lines1[2]);
-        Assert.Equal("none", lines1[3]);
-        Assert.Equal("my B", lines1[4]);
+        Assert.Equal("none", SpotAt(player1State, 0, 0));
+        Assert.Equal("my B", SpotAt(player1State, 0, 1));
+        Assert.Equal("none", SpotAt(player1State, 0, 2));
+        Assert.Equal("my B", SpotAt(player1State, 0, 3));
 
-        var lines2 = player2State.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal("5x5", lines2[0]);
-        Assert.Equal("none", lines2[1]);
-        Assert.Equal("up B", lines2[2]);
-        Assert.Equal("none", lines2[3]);
-        Assert.Equal("up B", lines2[4]);
+        Assert.Equal("none", SpotAt(player2State, 0, 0));
+        Assert.Equal("up B", SpotAt(player2State, 0, 1));
+        Assert.Equal("none", SpotAt(player2State, 0, 2));
+        Assert.Equal("up B", SpotAt(player2State, 0, 3));
     }
 
     [Fact]
     public async Task Given_NonMatchingCardsAfterSecondFlip_When_ViewBy_Then_ShowsBothCardsUp()
     {
-        var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+        var board = await LoadBoard();
         var player1 = "max123";
         var player2 = "johnPork";
 
@@ -124,19 +130,17 @@ public class BoardViewByTests
         var player1State = board.ViewBy(player1);
         var player2State = board.ViewBy(player2);
 
-        var lines1 = player1State.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal("up A", lines1[1]);
-        Assert.Equal("up B", lines1[2]);
+        Assert.Equal("up A", SpotAt(player1State, 0, 0));
+        Assert.Equal("up B", SpotAt(player1State, 0, 1));
 
-        var lines2 = player2State.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal("up A", lines2[1]);
-        Assert.Equal("up B", lines2[2]);
+        Assert.Equal("up A", SpotAt(player2State, 0, 0));
+        Assert.Equal("up B", SpotAt(player2State, 0, 1));
     }
 
     [Fact]
     public async Task Given_EmptyPlayerId_When_ViewBy_Then_ThrowsArgumentException()
     {
-        var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+        var board = await LoadBoard();
 
         Assert.Throws<ArgumentException>(() => board.ViewBy(""));
         Assert.Throws<ArgumentException>(() => board.ViewBy("   "));
@@ -146,7 +150,7 @@ public class BoardViewByTests
     [Fact]
     public async Task Given_MultiplePlayersWithDifferentStates_When_ViewBy_Then_EachPlayerSeesCorrectState()
     {
-        var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+        var board = await LoadBoard();
         var player1 = "alice";
         var player2 = "bob";
         var player3 = "charlie";
@@ -163,32 +167,29 @@ public class BoardViewByTests
         var bobState = board.ViewBy(player2);
         var charlieState = board.ViewBy(player3);
 
-        var aliceLines = aliceState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal("up A", aliceLines[1]);
-        Assert.Equal("up B", aliceLines[2]);
-        Assert.Equal("up A", aliceLines[3]);
-        Assert.Equal("up B", aliceLines[6]);
-        Assert.Equal("up B", aliceLines[8]);
+        Assert.Equal("up A", SpotAt(aliceState, 0, 0));
+        Assert.Equal("up B", SpotAt(aliceState, 0, 1));
+        Assert.Equal("up A", SpotAt(aliceState, 0, 2));
+        Assert.Equal("up B", SpotAt(aliceState, 1, 0));
+        Assert.Equal("up B", SpotAt(aliceState, 1, 2));
 
-        var bobLines = bobState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal("up A", bobLines[1]);
-        Assert.Equal("up B", bobLines[2]);
-        Assert.Equal("up A", bobLines[3]);
-        Assert.Equal("up B", bobLines[6]);
-        Assert.Equal("up B", bobLines[8]);
+        Assert.Equal("up A", SpotAt(bobState, 0, 0));
+        Assert.Equal("up B", SpotAt(bobState, 0, 1));
+        Assert.Equal("up A", SpotAt(bobState, 0, 2));
+        Assert.Equal("up B", SpotAt(bobState, 1, 0));
+        Assert.Equal("up B", SpotAt(bobState, 1, 2));
 
-        var charlieLines = charlieState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal("up A", charlieLines[1]);
-        Assert.Equal("my B", charlieLines[2]);
-        Assert.Equal("up A", charlieLines[3]);
-        Assert.Equal("up B", charlieLines[6]);
-        Assert.Equal("up B", charlieLines[8]);
+        Assert.Equal("up A", SpotAt(charlieState, 0, 0));
+        Assert.Equal("my B", SpotAt(charlieState, 0, 1));
+        Assert.Equal("up A", SpotAt(charlieState, 0, 2));
+        Assert.Equal("up B", SpotAt(charlieState, 1, 0));
+        Assert.Equal("up B", SpotAt(charlieState, 1, 2));
     }
 
     [Fact]
     public async Task Given_BoardStateAfterCleanup_When_ViewBy_Then_ShowsCorrectTurnedDownCards()
     {
-        var board = await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+        var board = await LoadBoard();
         var playerId = "max123";
 
         await board.Flip(playerId, 0, 0);
@@ -200,9 +201,9 @@ public class BoardViewByTests
         var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
         Assert.Equal("5x5", lines[0]);
-        Assert.Equal("down", lines[1]);
-        Assert.Equal("down", lines[2]); 
-        Assert.Equal("my A", lines[5]);
+        Assert.Equal("down", SpotAt(boardState, 0, 0));
+        Assert.Equal("down", SpotAt(boardState, 0, 1)); 
+        Assert.Equal("my A", SpotAt(boardState, 0, 4));
 
         for (int i = 3; i <= 4; i++)
             Assert.Equal("down", lines[i]);

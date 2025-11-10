@@ -91,17 +91,17 @@ public class Board
         var header = dataLines[0];
 
         if (!GridHeaderRegex.IsMatch(header))
-            throw new InvalidGridFormatException("The grid size format must match `RxC` with no spaces.");
+            throw new InvalidGridSizeFormatException();
 
         var parts = header.Split('x');
         if (!int.TryParse(parts[0], out int rows) || rows <= 0)
-            throw new InvalidGridFormatException("The `rows` amount must be an integer greater than zero.");
+            throw new InvalidRowColumnValueException("rows");
 
         if (!int.TryParse(parts[1], out int columns) || columns <= 0)
-            throw new InvalidGridFormatException("The `columns` amount must be an integer greater than zero.");
+            throw new InvalidRowColumnValueException("columns");
 
         if (rows * columns != dataLines.Length - 1)
-            throw new InvalidGridFormatException("The amount of cards do not match the specified grid size.");
+            throw new MismatchedCardCountException();
 
         var grid = new Cell[rows, columns];
 
@@ -111,7 +111,7 @@ public class Board
                 var card = dataLines[(i * columns) + j + 1];
 
                 if (!CardRegex.IsMatch(card))
-                    throw new InvalidGridFormatException($"Invalid card '{card}', cards must be non-empty and contain no whitespace.");
+                    throw new InvalidCardFormatException(card);
 
                 grid[i, j] = new Cell(card);
             }
@@ -475,7 +475,7 @@ public class Board
 
         // Rule 1-A: No card there
         if (cell.Card == null)
-            throw new FlipException("No card at that position.");
+            throw new NoCardAtPositionException();
 
         // Rule 1-D: Card is controlled by another dude
         while (IsControlled(pos) && !IsControlledBy(pos, playerId))
@@ -505,7 +505,7 @@ public class Board
             }
 
             if (cell.Card == null)
-                throw new FlipException("No card at that position.");
+                throw new NoCardAtPositionException();
         }
 
         // Rule 1-B: Turn the card face up
@@ -530,7 +530,7 @@ public class Board
         {
             GiveUpControl(firstPos, toResolve);
             playerState.SetSecondCard(firstPos);
-            throw new FlipException("No card at that position.");
+            throw new NoCardAtPositionException();
         }
 
         // Rule 2-B: No waiting on second card, cannot select an already controlled card
@@ -538,7 +538,7 @@ public class Board
         {
             GiveUpControl(firstPos, toResolve);
             playerState.SetSecondCard(firstPos);
-            throw new FlipException("Card is already controlled.");
+            throw new CardAlreadyControlledException();
         }   
 
         // Rule 2-C: Turn cards facing down to facing up
