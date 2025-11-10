@@ -148,7 +148,7 @@ public class Board
         return boardState.ToString();
     }
 
-    public async Task<string> Flip(string playerId, int row, int column)
+    public async Task Flip(string playerId, int row, int column)
     {
         if (string.IsNullOrWhiteSpace(playerId))
             throw new ArgumentException("Player ID cannot be null or empty.", nameof(playerId));
@@ -158,7 +158,7 @@ public class Board
 
         var toResolve = new List<Deferred<object?>>();
         var visibleChanged = false;
-
+        
         await _lock.WaitAsync();
         try
         {
@@ -168,7 +168,7 @@ public class Board
             var playerState = _players[playerId];
 
             if (playerState.SecondCard != null)
-                visibleChanged |= CleanupPreviousMove(playerId, toResolve);
+                visibleChanged |= CleanupPreviousMove(playerId, toResolve, (row, column));
 
             if (playerState.FirstCard == null)
                 visibleChanged |= await FlipFirstCardAsync(playerId, row, column);
@@ -176,7 +176,6 @@ public class Board
                 visibleChanged |= FlipSecondCard(playerId, row, column, toResolve);
 
             CheckRep();
-            return ViewBy(playerId);
         }
         finally
         {
@@ -561,7 +560,7 @@ public class Board
         return changed;
     }
 
-    private bool CleanupPreviousMove(string playerId, List<Deferred<object?>> toResolve)
+    private bool CleanupPreviousMove(string playerId, List<Deferred<object?>> toResolve, (int Row, int Column)? excludePos = null)
     {
         var playerState = _players[playerId];
         var firstPos = playerState.FirstCard!.Value;
@@ -572,7 +571,8 @@ public class Board
         if (firstPos == secondPos)
         {
             // Rule 3-B: Only first card to turn down, second flip failed
-            changed |= TurnDownIfPossible(firstPos);
+            if (firstPos != excludePos)
+                changed |= TurnDownIfPossible(firstPos);
             playerState.ClearCards();
             return changed;
         }
@@ -591,8 +591,10 @@ public class Board
         else
         {
             // Rule 3-B: Turn down non-matching cards if conditions are met
-            changed |= TurnDownIfPossible(firstPos);
-            changed |= TurnDownIfPossible(secondPos);
+            if (firstPos != excludePos)
+                changed |= TurnDownIfPossible(firstPos);
+            if (secondPos != excludePos)
+                changed |= TurnDownIfPossible(secondPos);
         }
 
         playerState.ClearCards();

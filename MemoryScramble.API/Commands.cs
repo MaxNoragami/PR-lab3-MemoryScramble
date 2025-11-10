@@ -6,7 +6,10 @@ public static class Commands
         => Task.FromResult(board.ViewBy(playerId));
 
     public static async Task<string> Flip(Board board, string playerId, int row, int column)
-        => await board.Flip(playerId, row, column);
+    {
+        await board.Flip(playerId, row, column);
+        return board.ViewBy(playerId);
+    }
 
     public static async Task<string> Map(Board board, string playerId, Func<string, Task<string>> f)
     {
