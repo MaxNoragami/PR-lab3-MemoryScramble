@@ -119,33 +119,41 @@ public class Board
         return new Board(rows, columns, grid);
     }
 
-    public string ViewBy(string playerId)
+    public async Task<string> ViewBy(string playerId)
     {
-        CheckRep();
-
         if (string.IsNullOrWhiteSpace(playerId))
             throw new ArgumentException("Player ID cannot be null or empty.", nameof(playerId));
 
-        var boardState = new StringBuilder();
-        boardState.AppendLine($"{Rows}x{Columns}");
+        await _lock.WaitAsync();
+        try
+        {
+            CheckRep();
 
-        for (int i = 0; i < Rows; i++)
-            for (int j = 0; j < Columns; j++)
-            {
-                var cell = _grid[i, j];
+            var boardState = new StringBuilder();
+            boardState.AppendLine($"{Rows}x{Columns}");
 
-                var spot = cell.Card switch
+            for (int i = 0; i < Rows; i++)
+                for (int j = 0; j < Columns; j++)
                 {
-                    null => "none",
-                    _ when !cell.IsUp => "down",
-                    _ when IsControlledBy((i, j), playerId) => $"my {cell.Card}",
-                    _ => $"up {cell.Card}"
-                };
+                    var cell = _grid[i, j];
 
-                boardState.AppendLine(spot);
-            }
+                    var spot = cell.Card switch
+                    {
+                        null => "none",
+                        _ when !cell.IsUp => "down",
+                        _ when IsControlledBy((i, j), playerId) => $"my {cell.Card}",
+                        _ => $"up {cell.Card}"
+                    };
 
-        return boardState.ToString();
+                    boardState.AppendLine(spot);
+                }
+
+            return boardState.ToString();
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task Flip(string playerId, int row, int column)
@@ -305,7 +313,10 @@ public class Board
         }
 
         foreach (var (watcher, playerId) in snapshot)
-            watcher.Resolve(ViewBy(playerId));
+        {
+            var view = await ViewBy(playerId);
+            watcher.Resolve(view);
+        }
     }
 
     public override string ToString()
