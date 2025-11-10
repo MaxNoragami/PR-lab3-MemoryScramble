@@ -1,12 +1,8 @@
 name: CI
-
 on: push
-
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -14,14 +10,38 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-          dotnet-version: |
-            9.0.x
-
+        dotnet-version: 9.0.x
+    
     - name: Restore dependencies
       run: dotnet restore PR-lab3-MemoryScramble.sln
-
-    - name: Build with .NET
+    
+    - name: Build
       run: dotnet build --configuration Release --no-restore PR-lab3-MemoryScramble.sln
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-output
+        path: |
+          **/bin/Release
+          **/obj/Release
 
-    - name: Test XUnit
-      run: dotnet test --configuration Release --no-restore --no-build PR-lab3-MemoryScramble.sln
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: build-output
+    
+    - name: Test
+      run: dotnet test --configuration Release --no-build --no-restore PR-lab3-MemoryScramble.sln
