@@ -1,9 +1,8 @@
-﻿using MemoryScramble.API.Exceptions;
-using PR_lab3_MemoryScramble.API;
+﻿using PR_lab3_MemoryScramble.API;
 
 namespace MemoryScramble.UnitTests;
 
-public class ViewByTest
+public class BoardViewByTests
 {
     [Fact]
     public async Task Given_InitialBoard_When_ViewBy_Then_ReturnsAllCardsDown()

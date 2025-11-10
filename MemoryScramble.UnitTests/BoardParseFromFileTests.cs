@@ -3,7 +3,7 @@ using PR_lab3_MemoryScramble.API;
 
 namespace MemoryScramble.UnitTests;
 
-public class ParseFromFileTest
+public class BoardParseFromFileTests
 {
     [Theory]
     [InlineData("TestingBoards/WithInvalidSizeFormat/1.txt")]

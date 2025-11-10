@@ -3,7 +3,7 @@ using PR_lab3_MemoryScramble.API;
 
 namespace MemoryScramble.UnitTests;
 
-public class FlipTest
+public class BoardFlipTests
 {
     [Fact]
     public async Task Rule1A_Given_EmptySpace_When_FlipFirstCard_Then_ThrowsFlipException()
