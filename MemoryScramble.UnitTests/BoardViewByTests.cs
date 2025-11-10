@@ -6,11 +6,14 @@ public class BoardViewByTests
 {
     private static async Task<Board> LoadBoard()
         => await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
+    
+    private static string[] GetLines(string boardState) =>
+        boardState.Replace("\r", string.Empty)
+                  .Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
     private static string SpotAt(string boardState, int row, int col)
     {
-        var lines = boardState.Replace("\r", string.Empty)
-                              .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var lines = GetLines(boardState);
         return lines[1 + row * 5 + col];
     }
 
@@ -20,9 +23,9 @@ public class BoardViewByTests
         var board = await LoadBoard();
         var playerId = "max123";
 
-        var boardState = board.ViewBy(playerId);
+        var boardState = await board.ViewBy(playerId);
 
-        var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var lines = GetLines(boardState);
 
         Assert.Equal("5x5", lines[0]);
         Assert.Equal(26, lines.Length);
@@ -38,9 +41,9 @@ public class BoardViewByTests
         var playerId = "max123";
 
         await board.Flip(playerId, 0, 0);
-        var boardState = board.ViewBy(playerId);
+        var boardState = await board.ViewBy(playerId);
 
-        var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var lines = GetLines(boardState);
 
         Assert.Equal("5x5", lines[0]);
         Assert.Equal("my A", SpotAt(boardState, 0, 0));
@@ -57,9 +60,9 @@ public class BoardViewByTests
         var player2 = "johnPork";
 
         await board.Flip(player1, 0, 0);
-        var boardState = board.ViewBy(player2);
+        var boardState = await board.ViewBy(player2);
 
-        var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var lines = GetLines(boardState);
 
         Assert.Equal("5x5", lines[0]);
         Assert.Equal("up A", SpotAt(boardState, 0, 0));
@@ -78,9 +81,9 @@ public class BoardViewByTests
         await board.Flip(playerId, 0, 2);
         await board.Flip(playerId, 0, 1);
 
-        var boardState = board.ViewBy(playerId);
+        var boardState = await board.ViewBy(playerId);
 
-        var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var lines = GetLines(boardState);
 
         Assert.Equal("5x5", lines[0]);
         Assert.Equal("none", SpotAt(boardState, 0, 0));
@@ -103,8 +106,8 @@ public class BoardViewByTests
         await board.Flip(player1, 0, 1);
         await board.Flip(player1, 0, 3);
 
-        var player1State = board.ViewBy(player1);
-        var player2State = board.ViewBy(player2);
+        var player1State = await board.ViewBy(player1);
+        var player2State = await board.ViewBy(player2);
 
         Assert.Equal("none", SpotAt(player1State, 0, 0));
         Assert.Equal("my B", SpotAt(player1State, 0, 1));
@@ -127,8 +130,8 @@ public class BoardViewByTests
         await board.Flip(player1, 0, 0);
         await board.Flip(player1, 0, 1);
 
-        var player1State = board.ViewBy(player1);
-        var player2State = board.ViewBy(player2);
+        var player1State = await board.ViewBy(player1);
+        var player2State = await board.ViewBy(player2);
 
         Assert.Equal("up A", SpotAt(player1State, 0, 0));
         Assert.Equal("up B", SpotAt(player1State, 0, 1));
@@ -142,9 +145,9 @@ public class BoardViewByTests
     {
         var board = await LoadBoard();
 
-        Assert.Throws<ArgumentException>(() => board.ViewBy(""));
-        Assert.Throws<ArgumentException>(() => board.ViewBy("   "));
-        Assert.Throws<ArgumentException>(() => board.ViewBy(null!));
+        await Assert.ThrowsAsync<ArgumentException>(() => board.ViewBy(""));
+        await Assert.ThrowsAsync<ArgumentException>(() => board.ViewBy("   "));
+        await Assert.ThrowsAsync<ArgumentException>(() => board.ViewBy(null!));
     }
 
     [Fact]
@@ -163,9 +166,9 @@ public class BoardViewByTests
 
         await board.Flip(player3, 0, 1);
 
-        var aliceState = board.ViewBy(player1);
-        var bobState = board.ViewBy(player2);
-        var charlieState = board.ViewBy(player3);
+        var aliceState = await board.ViewBy(player1);
+        var bobState = await board.ViewBy(player2);
+        var charlieState = await board.ViewBy(player3);
 
         Assert.Equal("up A", SpotAt(aliceState, 0, 0));
         Assert.Equal("up B", SpotAt(aliceState, 0, 1));
@@ -196,9 +199,9 @@ public class BoardViewByTests
         await board.Flip(playerId, 0, 1);
         await board.Flip(playerId, 0, 4);
 
-        var boardState = board.ViewBy(playerId);
+        var boardState = await board.ViewBy(playerId);
 
-        var lines = boardState.Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var lines = GetLines(boardState);
 
         Assert.Equal("5x5", lines[0]);
         Assert.Equal("down", SpotAt(boardState, 0, 0));

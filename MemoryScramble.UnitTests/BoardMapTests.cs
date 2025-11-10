@@ -32,7 +32,7 @@ public class BoardMapTests
         await board.Flip(pid, 0, 0); // first card
         await board.Flip(pid, 0, 2); // second card, should match X/X
 
-        var view = board.ViewBy(pid);
+        var view = await board.ViewBy(pid);
         Assert.Equal("my X", SpotAt(view, 0, 0));
         Assert.Equal("my X", SpotAt(view, 0, 2));
     }
@@ -70,7 +70,7 @@ public class BoardMapTests
         await board.Flip(pid, 0, 1);
 
         // Verify they are removed ("none")
-        var preMap = board.ViewBy(pid);
+        var preMap = await board.ViewBy(pid);
         Assert.Equal("none", SpotAt(preMap, 0, 0));
         Assert.Equal("none", SpotAt(preMap, 0, 2));
 
@@ -78,7 +78,7 @@ public class BoardMapTests
         await board.Map(s => Task.FromResult(s == "A" ? "X" : "Y"));
 
         // Removed spots must remain none
-        var postMap = board.ViewBy(pid);
+        var postMap = await board.ViewBy(pid);
         Assert.Equal("none", SpotAt(postMap, 0, 0));
         Assert.Equal("none", SpotAt(postMap, 0, 2));
     }
@@ -91,7 +91,7 @@ public class BoardMapTests
 
         // Snapshot a couple of known positions to assert unchanged later
         await board.Flip(pid, 0, 1); // (0,1) is B -> up/controlled B
-        var before = board.ViewBy(pid);
+        var before = await board.ViewBy(pid);
         Assert.Equal("my B", SpotAt(before, 0, 1));
 
         // f returns invalid whitespace to force failure
@@ -100,7 +100,7 @@ public class BoardMapTests
         await Assert.ThrowsAsync<ArgumentException>(() => board.Map(Bad));
 
         // Board state should be unchanged
-        var after = board.ViewBy(pid);
+        var after = await board.ViewBy(pid);
         Assert.Equal("my B", SpotAt(after, 0, 1));
     }
 
@@ -113,7 +113,7 @@ public class BoardMapTests
 
         // First flip: control (0,0) which is 'A'
         await board.Flip(pid, 0, 0);
-        var v1 = board.ViewBy(pid);
+        var v1 = await board.ViewBy(pid);
         Assert.Equal("my A", SpotAt(v1, 0, 0));
 
         // Start map() concurrently, transforming A -> X, leaving B unchanged.
@@ -146,7 +146,7 @@ public class BoardMapTests
         //   - both 'X' (map just applied to the whole A-group).
         await board.Flip(pid, 0, 2);
 
-        var v2 = board.ViewBy(pid);
+        var v2 = await board.ViewBy(pid);
         var s00 = SpotAt(v2, 0, 0);
         var s02 = SpotAt(v2, 0, 2);
 
@@ -161,7 +161,7 @@ public class BoardMapTests
 
         // Next move triggers 3-A cleanup (removal of matched pair)
         await board.Flip(pid, 0, 1); // (0,1) is a B in the starting board
-        var v3 = board.ViewBy(pid);
+        var v3 = await board.ViewBy(pid);
 
         Assert.Equal("none", SpotAt(v3, 0, 0));
         Assert.Equal("none", SpotAt(v3, 0, 2));

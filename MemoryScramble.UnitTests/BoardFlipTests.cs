@@ -30,7 +30,7 @@ public class BoardFlipTests
         await Assert.ThrowsAsync<NoCardAtPositionException>(() =>
             board.Flip(secondPlayerId, 0, 0)); // P2 try select as FirstCard an empty space
 
-        var boardState = board.ViewBy(secondPlayerId);
+        var boardState = await board.ViewBy(secondPlayerId);
         Assert.Equal("none", SpotAt(boardState, 0, 0)); // empty
         Assert.Equal("none", SpotAt(boardState, 0, 2)); // empty
     }
@@ -45,8 +45,8 @@ public class BoardFlipTests
         // Rule 1-B: Turn the card face up for everyone and control it
         await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
 
-        var firstBoardState = board.ViewBy(firstPlayerId);
-        var secondBoardState = board.ViewBy(secondPlayerId);
+        var firstBoardState = await board.ViewBy(firstPlayerId);
+        var secondBoardState = await board.ViewBy(secondPlayerId);
 
         Assert.Equal("my A", SpotAt(firstBoardState, 0, 0)); // first controls first card - A
         Assert.Equal("up A", SpotAt(secondBoardState, 0, 0)); // second views card up - A
@@ -61,14 +61,14 @@ public class BoardFlipTests
 
         await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
         await board.Flip(firstPlayerId, 0, 1); // B - SecondCard P1 (no match)
-        var boardStateBeforeFirst = board.ViewBy(firstPlayerId);
-        var boardStateBeforeSecond = board.ViewBy(secondPlayerId);
+        var boardStateBeforeFirst = await board.ViewBy(firstPlayerId);
+        var boardStateBeforeSecond = await board.ViewBy(secondPlayerId);
 
         // Rule 1-C: Player takes control, as card is already face up and not controlled
         await board.Flip(secondPlayerId, 0, 1); // B - FirstCard P2
 
-        var firstBoardStateAfter = board.ViewBy(firstPlayerId);
-        var secondBoardStateAfter = board.ViewBy(secondPlayerId);
+        var firstBoardStateAfter = await board.ViewBy(firstPlayerId);
+        var secondBoardStateAfter = await board.ViewBy(secondPlayerId);
 
         Assert.Equal("up B", SpotAt(boardStateBeforeFirst, 0, 1)); // first views card up - B
         Assert.Equal("up B", SpotAt(boardStateBeforeSecond, 0, 1)); // second views card up - B
@@ -93,9 +93,9 @@ public class BoardFlipTests
 
         await board.Flip(firstPlayerId, 0, 1); // B - SecondCard P1 (no match)
         await p2FlipTask;
-        var boardStateSecond = board.ViewBy(secondPlayerId);
+        var boardStateSecond = await board.ViewBy(secondPlayerId);
 
-        var boardStateFirst = board.ViewBy(firstPlayerId);
+        var boardStateFirst = await board.ViewBy(firstPlayerId);
 
         Assert.Equal("up A", SpotAt(boardStateFirst, 0, 0)); // first views card up - A
         Assert.Equal("my A", SpotAt(boardStateSecond, 0, 0)); // second controls first card - A
@@ -116,7 +116,7 @@ public class BoardFlipTests
         await Assert.ThrowsAsync<NoCardAtPositionException>(() =>
             board.Flip(playerId, 0, 0)); // try select as SecondCard an empty space
 
-        var boardState = board.ViewBy(playerId);
+        var boardState = await board.ViewBy(playerId);
 
         Assert.Equal("none", SpotAt(boardState, 0, 0)); // empty
         Assert.Equal("up B", SpotAt(boardState, 0, 1)); // given up first card - B
@@ -132,17 +132,17 @@ public class BoardFlipTests
 
         await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
         await board.Flip(firstPlayerId, 0, 2); // A - SecondCard P1 (match)
-        var boardStateBeforeFirst = board.ViewBy(firstPlayerId);
+        var boardStateBeforeFirst = await board.ViewBy(firstPlayerId);
 
         await board.Flip(secondPlayerId, 0, 4); // A - FirstCard P2
-        var boardStateBeforeSecond = board.ViewBy(secondPlayerId);
+        var boardStateBeforeSecond = await board.ViewBy(secondPlayerId);
 
         // Rule 2-B: No waiting on second card, cannot select an already controlled card
         await Assert.ThrowsAsync<CardAlreadyControlledException>(() =>
             board.Flip(secondPlayerId, 0, 0));  // A - P2 try open as SecondCard the controlled FirstCard of P1
 
-        var boardStateAfterFirst = board.ViewBy(firstPlayerId);
-        var boardStateAfterSecond = board.ViewBy(secondPlayerId);
+        var boardStateAfterFirst = await board.ViewBy(firstPlayerId);
+        var boardStateAfterSecond = await board.ViewBy(secondPlayerId);
 
         Assert.Equal("my A", SpotAt(boardStateBeforeFirst, 0, 0)); // first controls first card - A
         Assert.Equal("my A", SpotAt(boardStateBeforeFirst, 0, 2)); // first controls second card - A
@@ -164,13 +164,13 @@ public class BoardFlipTests
         var playerId = "max123";
 
         await board.Flip(playerId, 0, 0); // A - FirstCard
-        var boardStateFlipFirst = board.ViewBy(playerId);
+        var boardStateFlipFirst = await board.ViewBy(playerId);
 
         // Rule 2-B: Can't flip your own FirstCard as SecondCard
         await Assert.ThrowsAsync<CardAlreadyControlledException>(() =>
             board.Flip(playerId, 0, 0)); // A - try open as SecondCard its own controlled FirstCard
 
-        var boardStateFlipSecond = board.ViewBy(playerId);
+        var boardStateFlipSecond = await board.ViewBy(playerId);
 
         Assert.Equal("my A", SpotAt(boardStateFlipFirst, 0, 0)); // controls first card - A
         Assert.Equal("up A", SpotAt(boardStateFlipSecond, 0, 0)); // given up first - A
@@ -185,12 +185,12 @@ public class BoardFlipTests
 
         // Rule 2-C: Turn cards facing down to facing up
         await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
-        var boardStateBeforeFlipFirst = board.ViewBy(firstPlayerId);
-        var boardStateBeforeFlipSecond = board.ViewBy(secondPlayerId);
+        var boardStateBeforeFlipFirst = await board.ViewBy(firstPlayerId);
+        var boardStateBeforeFlipSecond = await board.ViewBy(secondPlayerId);
 
         await board.Flip(firstPlayerId, 0, 2); // A - SecondCard P1 (match)
-        var boardStateAfterFlipFirst = board.ViewBy(firstPlayerId);
-        var boardStateAfterFlipSecond = board.ViewBy(secondPlayerId);
+        var boardStateAfterFlipFirst = await board.ViewBy(firstPlayerId);
+        var boardStateAfterFlipSecond = await board.ViewBy(secondPlayerId);
 
         Assert.Equal("my A", SpotAt(boardStateBeforeFlipFirst, 0, 0)); // first controls first card - A
         Assert.Equal("up A", SpotAt(boardStateBeforeFlipSecond, 0, 0)); // second views card up - A
@@ -211,12 +211,12 @@ public class BoardFlipTests
         var secondPlayerId = "johnPork";
 
         await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
-        var boardStateBeforeFlipSecond = board.ViewBy(secondPlayerId);
-        var boardStateBeforeFlipFirst = board.ViewBy(firstPlayerId);
+        var boardStateBeforeFlipSecond = await board.ViewBy(secondPlayerId);
+        var boardStateBeforeFlipFirst = await board.ViewBy(firstPlayerId);
 
         await board.Flip(firstPlayerId, 0, 2); // A - SecondCard P1 (match)
-        var boardStateAfterFlipSecond = board.ViewBy(secondPlayerId);
-        var boardStateAfterFlipFirst = board.ViewBy(firstPlayerId);
+        var boardStateAfterFlipSecond = await board.ViewBy(secondPlayerId);
+        var boardStateAfterFlipFirst = await board.ViewBy(firstPlayerId);
 
         Assert.Equal("my A", SpotAt(boardStateBeforeFlipFirst, 0, 0)); // first controls first card - A
         Assert.Equal("up A", SpotAt(boardStateBeforeFlipSecond, 0, 0)); // second views card up - A
@@ -237,15 +237,15 @@ public class BoardFlipTests
         var secondPlayerId = "johnPork";
 
         await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
-        var boardStateBeforeFlipFirst = board.ViewBy(firstPlayerId);
-        var boardStateBeforeFlipSecond = board.ViewBy(secondPlayerId);
+        var boardStateBeforeFlipFirst = await board.ViewBy(firstPlayerId);
+        var boardStateBeforeFlipSecond = await board.ViewBy(secondPlayerId);
 
         // Rule 2-E: No match => give up control of both cards, they remain face up
         await board.Flip(firstPlayerId, 0, 1); // B - SecondCard P1 (no match)
-        var boardStateAfterFlipFirst = board.ViewBy(firstPlayerId);
+        var boardStateAfterFlipFirst = await board.ViewBy(firstPlayerId);
 
         await board.Flip(secondPlayerId, 0, 1); // B - FirstCard P2
-        var boardStateAfterFlipSecond = board.ViewBy(secondPlayerId);
+        var boardStateAfterFlipSecond = await board.ViewBy(secondPlayerId);
 
         Assert.Equal("my A", SpotAt(boardStateBeforeFlipFirst, 0, 0)); // first controls first card - A
         Assert.Equal("up A", SpotAt(boardStateBeforeFlipSecond, 0, 0)); // second views card up - A
@@ -267,12 +267,12 @@ public class BoardFlipTests
         await board.Flip(playerId, 0, 0); // A - FirstCard
         await board.Flip(playerId, 0, 2); // A - SecondCard (matched)
 
-        var beforeCleanup = board.ViewBy(playerId);
+        var beforeCleanup = await board.ViewBy(playerId);
 
         // Rule 3-A: Flipping new first card removes matched pair
         await board.Flip(playerId, 0, 1); // B - FirstCard
 
-        var afterCleanup = board.ViewBy(playerId);
+        var afterCleanup = await board.ViewBy(playerId);
 
         Assert.Equal("my A", SpotAt(beforeCleanup, 0, 0)); // controls first card - A
         Assert.Equal("my A", SpotAt(beforeCleanup, 0, 2)); // controls second card - A
@@ -292,12 +292,12 @@ public class BoardFlipTests
         await board.Flip(firstPlayerId, 0, 0); // A - FirstCard P1
         await board.Flip(firstPlayerId, 0, 1); // B - SecondCard P1 (no match)
 
-        var beforeCleanup = board.ViewBy(secondPlayerId);
+        var beforeCleanup = await board.ViewBy(secondPlayerId);
 
         // Rule 3-B: Flipping new first card turns non-matched cards face down
         await board.Flip(firstPlayerId, 0, 2); // A - FirstCard P1
 
-        var afterCleanup = board.ViewBy(secondPlayerId);
+        var afterCleanup = await board.ViewBy(secondPlayerId);
 
         Assert.Equal("up A", SpotAt(beforeCleanup, 0, 0)); // second views card up - A
         Assert.Equal("up B", SpotAt(beforeCleanup, 0, 1)); // second views card up - B
