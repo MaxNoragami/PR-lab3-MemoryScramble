@@ -193,11 +193,19 @@ public class Board
     {
         Rows = rows;
         Columns = columns;
-        _grid = grid;
+
+        _grid = new Cell[rows, columns];
+        for (int i = 0; i < rows; i++)
+            for (int j = 0; j < columns; j++)
+                _grid[i, j] = grid[i, j];
+        
         _controlledBy = new();
         _players = new();
         _holds = new();
-        _initialCards = initialCards;
+        
+        _initialCards = new string[initialCards.Length];
+        Array.Copy(initialCards, _initialCards, initialCards.Length);
+        
         CheckRep();
     }
 
