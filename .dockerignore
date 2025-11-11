@@ -1,0 +1,43 @@
+# Ignore build outputs
+**/bin/
+**/obj/
+
+# Ignore Visual Studio files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Ignore Git files
+.git/
+.gitignore
+.gitattributes
+
+# Ignore documentation
+*.md
+!README.md
+
+# Ignore test projects (we're only deploying the API)
+MemoryScramble.UnitTests/
+MemoryScramble.Simulation/
+
+# Ignore environment files
+.env
+.env.*
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore Docker files
+Dockerfile
+.dockerignore
+docker-compose.yml

@@ -1,21 +1,39 @@
 using PR_lab3_MemoryScramble.API;
+using PR_lab3_MemoryScramble.API.TaskSchedulers;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors();
+builder.Services.AddHttpClient();
 
 var app = builder.Build();
 
-var boardFilePath = args.Length > 0 ? args[0] : "Boards/test.txt";
+// Get board file from appsettings
+var boardFile = app.Configuration["BoardFile"] ?? "10x10.txt";
+var boardFilePath = args.Length > 0 ? args[0] : $"Boards/{boardFile}";
 var board = await Board.ParseFromFile(boardFilePath);
 
 if (app.Environment.EnvironmentName == "Host")
 {
-    var logger = app.Services.GetRequiredService<ILogger<GameResetScheduler>>();
-    var scheduler = new GameResetScheduler(board, logger);
-    _ = scheduler.StartAsync(app.Lifetime.ApplicationStopping);
+    // Get reset interval from appsettings (default: 5 minutes)
+    var resetIntervalMinutes = app.Configuration.GetValue<int>("GameResetIntervalMinutes", 5);
     
-    app.Logger.LogInformation("GameResetScheduler enabled in Host environment (resets every 5 minutes)");
+    // Start GameResetScheduler
+    var resetLogger = app.Services.GetRequiredService<ILogger<GameResetScheduler>>();
+    var gameResetScheduler = new GameResetScheduler(board, resetLogger, TimeSpan.FromMinutes(resetIntervalMinutes));
+    _ = gameResetScheduler.StartAsync(app.Lifetime.ApplicationStopping);
+    app.Logger.LogInformation("GameResetScheduler enabled in Host environment (resets every {Minutes} minutes)", resetIntervalMinutes);
+    
+    // Get health check interval from appsettings (default: 13 minutes)
+    var healthIntervalMinutes = app.Configuration.GetValue<int>("HealthCheckIntervalMinutes", 13);
+    
+    // Start HealthCheckScheduler
+    var healthLogger = app.Services.GetRequiredService<ILogger<HealthCheckScheduler>>();
+    var configuration = app.Services.GetRequiredService<IConfiguration>();
+    var httpClientFactory = app.Services.GetRequiredService<IHttpClientFactory>();
+    var healthCheckScheduler = new HealthCheckScheduler(healthLogger, configuration, httpClientFactory, TimeSpan.FromMinutes(healthIntervalMinutes));
+    _ = healthCheckScheduler.StartAsync(app.Lifetime.ApplicationStopping);
+    app.Logger.LogInformation("HealthCheckScheduler enabled in Host environment (pings /health every {Minutes} minutes)", healthIntervalMinutes);
 }
 
 app.MapGet("/look/{playerId}", async (string playerId) =>

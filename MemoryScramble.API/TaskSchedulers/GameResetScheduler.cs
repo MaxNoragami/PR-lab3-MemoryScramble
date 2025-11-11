@@ -1,4 +1,4 @@
-namespace PR_lab3_MemoryScramble.API;
+namespace PR_lab3_MemoryScramble.API.TaskSchedulers;
 
 /// <summary>
 /// Background service that periodically resets the game board.
