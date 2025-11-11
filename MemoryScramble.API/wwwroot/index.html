@@ -260,7 +260,7 @@ Try saving this web page to a file on your local machine, and opening that file 
           // server may have shut down -- start polling for it to return
           setTimeout(lookThenWatch, POLLING_INTERVAL)
         });
-        req.open('GET', 'http://' + memoryGame.server + '/watch/' + playerID);
+        req.open('GET', '/watch/' + playerID);
         console.log('sending watch request');
         req.send();
       }
@@ -286,7 +286,7 @@ Try saving this web page to a file on your local machine, and opening that file 
         req.addEventListener('error', function onLookError() {
           console.error('look error', memoryGame.server);
         });
-        req.open('GET', 'http://' + memoryGame.server + '/look/' + playerID);
+        req.open('GET', '/look/' + playerID);
         console.log('sending look request');
         req.send();
       }
@@ -306,7 +306,7 @@ Try saving this web page to a file on your local machine, and opening that file 
         flippingCell.classList.add('card-waiting');
         const col = indexOfElement(flippingCell);
         const row = indexOfElement(flippingCell.parentElement);
-        const url = memoryGame.server + '/flip/' + playerID + '/' + row + ',' + col;
+        const url = '/flip/' + playerID + '/' + row + ',' + col;
         const req = new XMLHttpRequest();
         req.addEventListener('load', function onFlipLoad() {
           if (req.status === 200) { // successful
@@ -325,7 +325,7 @@ Try saving this web page to a file on your local machine, and opening that file 
         req.addEventListener('error', function onFlipError() {
             console.error('flip error', url); // specific error may be handled in load, above
         });
-        req.open('GET', 'http://' + url);
+        req.open('GET', url);
         console.log('sending flip request');
         req.send();
       }
@@ -344,7 +344,7 @@ Try saving this web page to a file on your local machine, and opening that file 
         req.addEventListener('error', function onLookError() {
           console.error('replace error', memoryGame.server);
         });
-        req.open('GET', 'http://' + memoryGame.server + '/replace/' + playerID + '/' + fromCard + '/' + toCard);
+        req.open('GET', '/replace/' + playerID + '/' + fromCard + '/' + toCard);
         console.log('sending replace request');
         req.send();
       }
