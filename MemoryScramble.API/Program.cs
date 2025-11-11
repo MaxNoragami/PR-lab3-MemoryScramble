@@ -15,6 +15,8 @@ var board = await Board.ParseFromFile(boardFilePath);
 
 if (app.Environment.EnvironmentName == "Host")
 {
+    app.UseHttpsRedirection();
+
     // Get reset interval from appsettings (default: 5 minutes)
     var resetIntervalMinutes = app.Configuration.GetValue<int>("GameResetIntervalMinutes", 5);
     
@@ -119,6 +121,7 @@ app.UseCors(policy => policy
     .AllowAnyMethod()
     .AllowAnyHeader());
 
+app.UseDefaultFiles();
 app.UseStaticFiles();
 
 
