@@ -40,17 +40,17 @@ public class Simulation
         }
 
         // Simulation config
-        const int players = 8;
-        const int tries   = 80; // ignored if infinite==true
+        const int players = 4;
+        const int tries   = 100; // ignored if infinite==true
 
         Console.WriteLine($"\nStarting simulation with {players} concurrent players"
-                          + (infinite ? " (infinite mode: press Ctrl+C to stop)" : ""));
+                          + (infinite ? " (infinite mode: press Ctrl+C to stop)" : $", {tries} moves each"));
         Console.WriteLine($"Initial board:\n{board}\n");
 
         var playerTasks = new List<Task>();
         for (int i = 0; i < players; i++)
         {
-            var startDelay = noDelay ? 1 : Random.Shared.Next(0, 100);
+            var startDelay = noDelay ? 0 : Random.Shared.Next(0, 2);
             playerTasks.Add(Player(board, i, board.Rows, board.Columns, tries, startDelay, noDelay, infinite));
         }
 
@@ -117,9 +117,9 @@ public class Simulation
             attempt++;
             try
             {
-                // thinking time
-                var think1 = noDelay ? 1 : Random.Shared.Next(10, 100);
-                if (think1 > 0) await Task.Delay(think1);
+                // thinking time: between 0.1ms and 2ms (Random.NextDouble() gives [0.0, 1.0))
+                var think1Ms = noDelay ? 0 : 0.1 + (Random.Shared.NextDouble() * 1.9);
+                if (think1Ms > 0) await Task.Delay(TimeSpan.FromMilliseconds(think1Ms));
 
                 var firstRow = RandomInt(rows);
                 var firstCol = RandomInt(columns);
@@ -127,9 +127,9 @@ public class Simulation
                 Console.WriteLine($"[{playerId}] Attempt {attempt}: Flipping first card at ({firstRow}, {firstCol})");
                 var afterFirst = await Commands.Flip(board, playerId, firstRow, firstCol);
 
-                // between cards
-                var think2 = noDelay ? 1: Random.Shared.Next(10, 100);
-                if (think2 > 0) await Task.Delay(think2);
+                // between cards: between 0.1ms and 2ms
+                var think2Ms = noDelay ? 0 : 0.1 + (Random.Shared.NextDouble() * 1.9);
+                if (think2Ms > 0) await Task.Delay(TimeSpan.FromMilliseconds(think2Ms));
 
                 var secondRow = RandomInt(rows);
                 var secondCol = RandomInt(columns);
@@ -148,7 +148,7 @@ public class Simulation
                 Console.WriteLine($"[{playerId}] Attempt {attempt} failed: {ex.Message}");
             }
 
-            // if infinite, loop continues until you press Ctrl+C to kill the process
+            // if infinite, loop continues until the user presses Ctrl+C to kill the process
         }
 
         Console.WriteLine($"[{playerId}] Simulation {(infinite ? "stopped" : "complete")}");
