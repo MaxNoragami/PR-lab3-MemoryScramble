@@ -1,4 +1,4 @@
-# Memory Scramble - Laboratory Report
+# Memory Scramble =(^.^)=
 
 ## Aim of the Laboratory
 
@@ -848,11 +848,3 @@ This implementation demonstrates comprehensive understanding of:
 - **Specification-driven development** per 6.102 requirements
 - **Comprehensive testing** with 65 passing tests
 - **Production deployment** with Docker and cloud hosting
-
-The game successfully handles 4+ concurrent players making simultaneous moves without crashes, satisfying all requirements for MIT 6.102 Problem Set 4.
-
----
-
-*Implemented by: Alex*  
-*Course: 6.102 — Software Construction, Spring 2025*  
-*Language: C# 9.0 / .NET 9.0*
