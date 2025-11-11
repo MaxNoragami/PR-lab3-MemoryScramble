@@ -2,14 +2,26 @@ using PR_lab3_MemoryScramble.API;
 
 namespace MemoryScramble.UnitTests;
 
+/// <summary>
+/// Tests for Board.Map() functionality - verifying card transformation operations.
+/// </summary>
 public class BoardMapTests
 {
+    /// <summary>
+    /// Helper method to load a standard 5x5 test board.
+    /// </summary>
     private static async Task<Board> LoadBoard() =>
         await Board.ParseFromFile("TestingBoards/Valid/5x5.txt");
     
+    /// <summary>
+    /// Helper method to split board state into lines, handling cross-platform line endings.
+    /// </summary>
     private static string[] Lines(string s) =>
         s.Replace("\r\n", "\n").Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
+    /// <summary>
+    /// Helper method to get the card state at a specific board position.
+    /// </summary>
     private static string SpotAt(string viewBy, int row, int col, int rows = 5, int cols = 5)
     {
         var lines = Lines(viewBy);
@@ -18,12 +30,16 @@ public class BoardMapTests
         return lines[idx];
     }
 
+    /// <summary>
+    /// Tests that Map() transforms cards correctly (A -> X) while leaving others unchanged.
+    /// </summary>
     [Fact]
     public async Task Given_TransformerAtoX_When_Map_Then_AsBecomeXAndBsStayB()
     {
+        // Arrange: Load board
         var board = await LoadBoard();
 
-        // A -> X, B -> B (unchanged)
+        // Act: Transform A -> X, B -> B (unchanged)
         await board.Map(async s => s == "A" ? "X" : s);
 
         // Flip two original A positions: (0,0) and (0,2).
@@ -32,31 +48,40 @@ public class BoardMapTests
         await board.Flip(pid, 0, 0); // first card
         await board.Flip(pid, 0, 2); // second card, should match X/X
 
+        // Assert: Both cards should show as "my X" (matched)
         var view = await board.ViewBy(pid);
         Assert.Equal("my X", SpotAt(view, 0, 0));
         Assert.Equal("my X", SpotAt(view, 0, 2));
     }
 
+    /// <summary>
+    /// Tests that Map() with identity transformation does not trigger watchers (no visible change).
+    /// </summary>
     [Fact]
     public async Task Given_IdentityTransformer_When_Map_Then_NoVisibleChange()
     {
+        // Arrange: Load board and start watching
         var board = await LoadBoard();
         var pid = "p1";
 
         // Start a watch
         var watchTask = board.Watch(pid);
 
-        // Identity transform: no visible string changes
+        // Act: Apply identity transform (no visible string changes)
         await board.Map(s => Task.FromResult(s));
 
-        // Watch must still be pending after a short period (no change occurred)
+        // Assert: Watch must still be pending after a short period (no change occurred)
         var completed = await Task.WhenAny(watchTask, Task.Delay(50));
         Assert.NotSame(watchTask, completed);
     }
 
+    /// <summary>
+    /// Tests that Map() preserves removed cards as "none" (doesn't restore them).
+    /// </summary>
     [Fact]
     public async Task Given_RemovedPair_When_Map_Then_RemovedStaysNone()
     {
+        // Arrange: Load board and create matched pair
         var board = await LoadBoard();
         var pid = "p1";
 
@@ -74,18 +99,22 @@ public class BoardMapTests
         Assert.Equal("none", SpotAt(preMap, 0, 0));
         Assert.Equal("none", SpotAt(preMap, 0, 2));
 
-        // Map A->X, B->Y
+        // Act: Map A->X, B->Y
         await board.Map(s => Task.FromResult(s == "A" ? "X" : "Y"));
 
-        // Removed spots must remain none
+        // Assert: Removed spots must remain none
         var postMap = await board.ViewBy(pid);
         Assert.Equal("none", SpotAt(postMap, 0, 0));
         Assert.Equal("none", SpotAt(postMap, 0, 2));
     }
 
+    /// <summary>
+    /// Tests that Map() throws ArgumentException for invalid transformer output and leaves board unchanged.
+    /// </summary>
     [Fact]
     public async Task Given_InvalidTransformerOutput_When_Map_Then_ThrowsAndBoardUnchanged()
     {
+        // Arrange: Load board and create state
         var board = await LoadBoard();
         var pid = "p1";
 
@@ -94,7 +123,7 @@ public class BoardMapTests
         var before = await board.ViewBy(pid);
         Assert.Equal("my B", SpotAt(before, 0, 1));
 
-        // f returns invalid whitespace to force failure
+        // Act & Assert: Transformer returns invalid whitespace, should fail
         async Task<string> Bad(string s) => await Task.FromResult("  ");
 
         await Assert.ThrowsAsync<ArgumentException>(() => board.Map(Bad));
@@ -104,10 +133,14 @@ public class BoardMapTests
         Assert.Equal("my B", SpotAt(after, 0, 1));
     }
 
+    /// <summary>
+    /// Tests that Map() running concurrently with Flip() maintains consistency.
+    /// The matched pair must have the same string value (either both A or both X).
+    /// </summary>
     [Fact]
     public async Task Given_MapRunsConcurrentlyBetweenFlips_When_MatchingPair_Then_StillMatches()
     {
-        // (0,0) and (0,2) are both 'A' in the starting board
+        // Arrange: (0,0) and (0,2) are both 'A' in the starting board
         var board = await LoadBoard();
         var pid = "p1";
 
@@ -140,7 +173,7 @@ public class BoardMapTests
         // Release the gate so A->X can be applied at some point soon
         gate.SetResult();
 
-        // Without awaiting map(), immediately attempt the second flip on the other original 'A' (0,2).
+        // Act: Without awaiting map(), immediately attempt the second flip on the other original 'A' (0,2).
         // Depending on timing, this second flip will see:
         //   - both still 'A' (map not applied yet), or
         //   - both 'X' (map just applied to the whole A-group).
@@ -150,7 +183,7 @@ public class BoardMapTests
         var s00 = SpotAt(v2, 0, 0);
         var s02 = SpotAt(v2, 0, 2);
 
-        // They must match and be controlled by the player, with either value A or X.
+        // Assert: They must match and be controlled by the player, with either value A or X.
         Assert.StartsWith("my ", s00);
         Assert.StartsWith("my ", s02);
         Assert.Equal(s00, s02);

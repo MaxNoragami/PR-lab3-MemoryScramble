@@ -116,6 +116,7 @@ public class Board
     private readonly Dictionary<(int Row, int Column), HashSet<Deferred<object?>>> _holds;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly Dictionary<Deferred<string>, string> _watchers = new();
+    private readonly string[] _initialCards; // Store initial state for reset
 
     // Rep invariant:
     //   - _grid is not null, with dimensions Rows x Columns (both > 0)
@@ -187,7 +188,8 @@ public class Board
     /// <param name="rows">Number of rows (must be positive)</param>
     /// <param name="columns">Number of columns (must be positive)</param>
     /// <param name="grid">The grid of cells representing the board</param>
-    private Board(int rows, int columns, Cell[,] grid)
+    /// <param name="initialCards">The initial card values for reset functionality</param>
+    private Board(int rows, int columns, Cell[,] grid, string[] initialCards)
     {
         Rows = rows;
         Columns = columns;
@@ -195,6 +197,7 @@ public class Board
         _controlledBy = new();
         _players = new();
         _holds = new();
+        _initialCards = initialCards;
         CheckRep();
     }
 
@@ -253,7 +256,11 @@ public class Board
                 grid[i, j] = new Cell(card);
             }
 
-        return new Board(rows, columns, grid);
+        // Store initial cards for reset functionality (skip header line)
+        var initialCards = new string[dataLines.Length - 1];
+        Array.Copy(dataLines, 1, initialCards, 0, initialCards.Length);
+
+        return new Board(rows, columns, grid, initialCards);
     }
 
     /// <summary>
@@ -496,6 +503,53 @@ public class Board
         }
 
         return await watcher.Task;
+    }
+    
+    /// <summary>
+    /// Resets the board to its initial state.
+    /// All cards are restored to their original positions face-down.
+    /// All players lose control of their cards and their game state is cleared.
+    /// All waiting operations are rejected with an OperationCanceledException.
+    /// All watchers are notified of the board change.
+    /// </summary>
+    /// <returns>A task that completes when the reset is finished</returns>
+    public async Task Reset()
+    {        
+        await _lock.WaitAsync();
+        try
+        {
+            // Restore all cards to initial state, face down
+            int cardIndex = 0;
+            for (int i = 0; i < Rows; i++)
+                for (int j = 0; j < Columns; j++)
+                {
+                    var cell = _grid[i, j];
+                    cell.Replace(_initialCards[cardIndex++]);
+                    cell.TurnDown();
+                }
+
+            // Clear all control
+            _controlledBy.Clear();
+
+            // Clear all player states
+            _players.Clear();
+
+            // Reject all waiting operations
+            foreach (var holdSet in _holds.Values)
+                foreach (var hold in holdSet)
+                    hold.Reject(new OperationCanceledException("Board was reset"));
+
+            _holds.Clear();
+
+            CheckRep();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        // Notify all watchers about the reset
+        await NotifyWatchersAsync();
     }
     
     /// <summary>

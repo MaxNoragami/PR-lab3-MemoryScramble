@@ -9,6 +9,14 @@ var app = builder.Build();
 var boardFilePath = args.Length > 0 ? args[0] : "Boards/test.txt";
 var board = await Board.ParseFromFile(boardFilePath);
 
+if (app.Environment.EnvironmentName == "Host")
+{
+    var logger = app.Services.GetRequiredService<ILogger<GameResetScheduler>>();
+    var scheduler = new GameResetScheduler(board, logger);
+    _ = scheduler.StartAsync(app.Lifetime.ApplicationStopping);
+    
+    app.Logger.LogInformation("GameResetScheduler enabled in Host environment (resets every 5 minutes)");
+}
 
 app.MapGet("/look/{playerId}", async (string playerId) =>
 {
