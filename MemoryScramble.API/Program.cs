@@ -85,6 +85,8 @@ app.MapGet("/watch/{playerId}", async (string playerId) =>
     }
 });
 
+app.MapGet("/health", () => Results.Text("OK", "text/plain"));
+
 
 app.UseCors(policy => policy
     .AllowAnyOrigin()
